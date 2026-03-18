@@ -6,54 +6,115 @@ import { Post } from './types';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { motion, AnimatePresence } from 'framer-motion'; // Changed from 'motion/react' to 'framer-motion'
-import { ArrowLeft, RefreshCw, Loader2, Sparkles, Search, Share2, Copy, Check, Twitter, Linkedin } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, Search, Share2, Check, Twitter, Linkedin, Github, Zap, X, Info } from 'lucide-react';
+
+// Modal que aparece em produção (GitHub Pages) explicando o fluxo de automação
+function GitHubActionsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', damping: 20 }}
+        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+            <Zap className="w-5 h-5 text-emerald-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Automação via GitHub Actions</h2>
+            <p className="text-xs text-zinc-500">Como os posts são gerados</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+            <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              No GitHub Pages, a geração de posts é feita automaticamente pelo <strong>GitHub Actions</strong> toda segunda-feira às 9h.
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+            <Github className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Para gerar um post agora, dispare o workflow <strong>"AI Blog - Generate Weekly Post"</strong> manualmente pelo GitHub.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <a
+            href="https://github.com/leonardodebs/tech-insights-blog/actions/workflows/auto-blog.yml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-xl transition-all text-sm"
+          >
+            <Github className="w-4 h-4" />
+            Abrir GitHub Actions
+          </a>
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm"
+          >
+            Fechar
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+import postsData from './data/posts.json';
 
 export default function App() {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(postsData);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [showGHModal, setShowGHModal] = useState(false);
 
-  const fetchPosts = async () => {
-    try {
-      const response = await fetch('/api/posts');
-      const data = await response.json();
-      setPosts(data);
-      
-      // Check for post ID in URL on initial load
-      const urlParams = new URLSearchParams(window.location.search);
-      const postId = urlParams.get('post');
-      if (postId) {
-        const post = data.find((p: Post) => p.id === postId);
-        if (post) setSelectedPost(post);
-      }
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // import.meta.env.PROD é sempre true no build de produção (GitHub Pages)
+  // e false no dev (localhost com Vite)
+  const isProduction = import.meta.env.PROD;
 
   useEffect(() => {
-    fetchPosts();
+    // Carregar do URL se houver ID de post
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('post');
+    if (postId) {
+      const post = postsData.find((p: Post) => p.id === postId);
+      if (post) setSelectedPost(post);
+    }
   }, []);
 
-  // Update URL when post is selected/deselected
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (selectedPost) {
-      url.searchParams.set('post', selectedPost.id);
-    } else {
-      url.searchParams.delete('post');
-    }
-    window.history.replaceState({}, '', url.toString());
-  }, [selectedPost]);
-
   const handleTriggerAutomation = async () => {
+    // Em produção (GitHub Pages), não há backend — mostra o modal informativo
+    if (isProduction) {
+      setShowGHModal(true);
+      return;
+    }
+    
     setIsGenerating(true);
     try {
       const response = await fetch('/api/trigger-automation', { 
@@ -64,7 +125,6 @@ export default function App() {
       const data = await response.json();
       if (data.success) {
         setToast({ message: 'Novo artigo gerado com sucesso!', type: 'success' });
-        await fetchPosts();
       } else {
         setToast({ message: 'Erro ao gerar post: ' + data.error, type: 'error' });
       }
@@ -319,6 +379,9 @@ export default function App() {
             onClose={closeToast} 
           />
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showGHModal && <GitHubActionsModal onClose={() => setShowGHModal(false)} />}
       </AnimatePresence>
     </Layout>
   );
