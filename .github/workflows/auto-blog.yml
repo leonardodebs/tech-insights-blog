@@ -1,9 +1,9 @@
-name: 🚀 AI Blog: Generate & Deploy
+name: "AI Blog Generate and Deploy"
 
 on:
   schedule:
-    - cron: '0 9 * * 1' # Toda segunda às 06h BRT
-  workflow_dispatch: # Teste manual
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,36 +14,37 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - name: 🟢 Setup Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: 📦 Install
+      - name: Install dependencies
         run: npm install
 
-      - name: 🤖 Generate AI Post
+      - name: Generate AI Post
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation()"
 
-      - name: 📝 Save & Commit Post
+      - name: Save and Commit Post
         run: |
           git config --global user.name "AI Bot"
           git config --global user.email "bot@github.com"
           git add src/data/posts.json
-          git commit -m "🚀 Auto-Post: Inteligência Semanal [skip ci]" || echo "Nada para commitar"
+          git commit -m "Auto-Post: Weekly Intel [skip ci]" || echo "Nothing to commit"
           git push origin main
 
-      - name: 🏗️ Build Site
+      - name: Build Site 
         run: npm run build
 
-      - name: 🚀 Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
