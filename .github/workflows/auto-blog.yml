@@ -2,7 +2,7 @@ name: "AI Blog - Generate Weekly Post"
 
 on:
   schedule:
-    - cron: '0 9 * * 1'
+    - cron: '0 11 * * 1'  # Segunda-feira às 8h00 BRT (11h00 UTC)
   workflow_dispatch:
 
 permissions:
