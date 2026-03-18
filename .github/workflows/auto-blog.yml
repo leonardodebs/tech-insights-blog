@@ -1,37 +1,51 @@
-name: Weekly Auto Blog Update
+name: 🚀 AI Blog: Generate & Deploy
 
 on:
   schedule:
-    # Every Friday at 08:00 UTC
-    - cron: '0 8 * * 5'
-  workflow_dispatch: # Allow manual trigger
+    - cron: '0 9 * * 1' # Toda segunda às 06h BRT
+  workflow_dispatch: # Teste manual
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  update-blog:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🟢 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies
+      - name: 📦 Install
         run: npm install
 
-      - name: Run Automation Script
+      - name: 🤖 Generate AI Post
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: |
-          # We can run a standalone script or use tsx to call the service
-          npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => console.log('Done')).catch(err => { console.error(err); process.exit(1); })"
+        run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation()"
 
-      - name: Commit and Push changes
+      - name: 📝 Save & Commit Post
         run: |
-          git config --global user.name "TechPulse AI Bot"
-          git config --global user.email "bot@techpulse.ai"
+          git config --global user.name "AI Bot"
+          git config --global user.email "bot@github.com"
           git add src/data/posts.json
-          git commit -m "chore: weekly automated blog update [skip ci]" || echo "No changes to commit"
-          git push
+          git commit -m "🚀 Auto-Post: Inteligência Semanal [skip ci]" || echo "Nada para commitar"
+          git push origin main
+
+      - name: 🏗️ Build Site
+        run: npm run build
+
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true

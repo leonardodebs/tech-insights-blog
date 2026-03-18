@@ -98,6 +98,4 @@ Este projeto foi desenvolvido com foco em automação total e design de alta qua
 
 ---
 
-<div align="center">
-  <p>Feito com ❤️ por apaixonados por tecnologia.</p>
-</div>
+

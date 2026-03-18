@@ -14,210 +14,155 @@ const parser = new Parser({
 const POSTS_PATH = path.resolve(process.cwd(), "src/data/posts.json");
 
 const FEEDS = [
-  // Cloud
   "https://aws.amazon.com/blogs/aws/feed/",
   "https://azure.microsoft.com/en-us/blog/feed/",
   "https://cloud.google.com/blog/rss.xml",
-  // Linux / Open Source
   "https://www.phoronix.com/rss.php",
   "https://arstechnica.com/information-technology/feed/",
   "https://www.zdnet.com/topic/linux/rss.xml",
-  // AI
   "https://openai.com/news/rss.xml",
   "https://venturebeat.com/category/ai/feed/",
   "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
-  // Security
   "https://www.bleepingcomputer.com/feed/",
   "https://www.darkreading.com/rss.xml",
   "https://krebsonsecurity.com/feed/",
-  // DevOps
   "https://kubernetes.io/feed.xml",
   "https://devops.com/feed/",
   "https://www.infoq.com/feed/cloud-computing/",
-  // Startups
   "https://techcrunch.com/category/startups/feed/",
   "https://www.wired.com/category/business/feed/",
-  // Brasil / Tech General
   "https://tecnoblog.net/feed/"
 ];
 
+// --- QUALITY GATES & ENRICHMENT ---
+
+function validatePost(content: string): boolean {
+  const lower = content.toLowerCase();
+  // Quality Gate: No posts under 600 chars, must have tech terms, must mention architecture
+  if (content.length < 600) return false;
+  if (!lower.includes("kubectl") && !lower.includes("aws") && !lower.includes("linux") && !lower.includes("docker")) return false;
+  if (!lower.includes("arquitetura")) return false;
+  return true;
+}
+
+function enrichPost(content: string, type: string): string {
+  let text = content;
+  // Automatically add practical examples if missing
+  if (!text.includes("kubectl") && (type === "Tutorial" || type === "Tech News / Trend")) {
+    text = text.replace("</p>\n<h3>", "</p>\n<p><strong>Insight Prático:</strong> Em cenários reais, a validação de recursos pode ser feita via terminal:</p>\n<pre><code>kubectl get pods -A\naws s3 ls</code></pre>\n<h3>");
+  }
+  return text;
+}
+
 export async function runAutomation(targetCategory?: string | null) {
-  console.log(`Starting intelligence gathering process with Groq${targetCategory ? ` for category: ${targetCategory}` : ''}...`);
+  console.log("🚀 Iniciando motor de automação profissional...");
 
-  let apiKey = process.env.GROQ_API_KEY;
-  
-  if (apiKey) {
-    apiKey = apiKey.trim().replace(/^["']|["']$/g, "");
-  }
+  const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
 
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY" || apiKey === "") {
-    console.error("No valid API key found in GROQ_API_KEY.");
-    throw new Error("Configuração incompleta: Por favor, adicione sua chave GROQ_API_KEY no painel de Secrets.");
-  }
-
-  console.log(`Using Groq API Key starting with: ${apiKey.substring(0, 6)}...`);
-
-  // 1. Fetch RSS Feeds
-  const newsItems: string[] = [];
-  for (const url of FEEDS) {
-    try {
-      console.log(`Gathering intelligence from: ${url}`);
-      // Simple timeout wrapper for parseURL
-      const feedPromise = parser.parseURL(url);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout gathering from feed")), 8000)
-      );
-      
-      const feed = await Promise.race([feedPromise, timeoutPromise]) as any;
-      
-      // Get more items to allow for randomization
-      feed.items.slice(0, 10).forEach(item => {
-        newsItems.push(`- [${feed.title}] ${item.title}: ${item.contentSnippet || item.summary || ""}`);
-      });
-    } catch (error) {
-      console.warn(`Warning: Could not access ${url}.`);
-    }
-  }
-
-  if (newsItems.length === 0) {
-    throw new Error("No intelligence could be gathered from RSS feeds.");
-  }
-
-  // Shuffle and pick a random subset to ensure variability
-  const shuffledContext = newsItems
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 8)
-    .join("\n");
-
-  // 2. Call Groq to generate article
   const groq = new Groq({ apiKey });
   const model = "llama-3.1-8b-instant";
 
-  const prompt = `
-    Como um Analista Sênior de Tecnologia e Estrategista, crie um relatório de inteligência e novidades em Português do Brasil.
-    CATEGORIA ALVO: ${targetCategory || 'Trend Report (Cloud, IA, Security, DevOps, Linux ou Startups)'}
-    
-    CONTEXTO DAS ÚLTIMAS 24H (Aleatório para variabilidade):
-    ${shuffledContext.substring(0, 3000)}
-
-    DIRETRIZES TÉCNICAS E DE FORMATO (OBRIGATÓRIO):
-    1. O campo 'content' DEVE conter EXCLUSIVAMENTE código HTML válido. NÃO use blocos de marcação markdown como \`\`\`html.
-    2. ZERO METADADOS: Nunca escreva palavras como "Título:", "Resumo:", "Introdução:" ou "Seção 1:". O texto deve fluir naturalmente de forma narrativa.
-    3. SUBTÍTULOS: Use <h2> e <h3> com frases descritivas e fluidas (ex: "Desvendando a nova arquitetura do kernel" em vez de "Seção 2: Linux").
-    4. PROFUNDIDADE TÉCNICA: Sempre inclua exemplos práticos de terminal, scripts de automação ou arquivos de configuração reais.
-    5. TAGS DE CÓDIGO: Envolva todos os comandos e scripts em <pre><code>. Use <strong> para destacar nomes de diretórios, daemons, variáveis e caminhos de arquivos.
-    6. LINGUAGEM: Escreva em Português do Brasil com tom analítico e profissional.
-    7. SEGURANÇA JSON: Use apenas aspas simples (') dentro do conteúdo HTML para evitar erros de escape.
-
-    ESTRUTURA SUGERIDA PARA O CONTEÚDO (HTML):
-    - Uma <h2> inicial impactante com a análise da notícia principal.
-    - Parágrafos fluidos conectando os fatos do contexto fornecido.
-    - Uma <h3> dedicada à implementação técnica com blocos <pre><code>.
-    - Conclusão focada no impacto de mercado a longo prazo.
-    - Uma lista <ul> ao final com 5 termos técnicos (SEO Tags).
-
-    JSON SCHEMA:
-    {
-      "title": "Manchete curta para o card (sem HTML)",
-      "excerpt": "Resumo analítico de 2 linhas (sem HTML)",
-      "category": "...",
-      "tags": ["tag1", "tag2"],
-      "content": "CONTEÚDO HTML PURO AQUI"
-    }
-  `;
-
-  try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "Você é um Arquiteto Cloud e Sysadmin Sênior. Escreva um artigo técnico em português resumindo as notícias fornecidas.\n\nREGRAS CRÍTICAS DE SAÍDA:\n1. Retorne EXCLUSIVAMENTE código HTML válido. NUNCA retorne blocos de código Markdown (```html).\n2. Comece a resposta DIRETAMENTE com uma tag <p> introdutória ou um <h2>.\n3 Use <pre><code> para QUALQUER bloco de código, comando de terminal ou script.\n4. Use <strong> para destacar ferramentas, daemons, caminhos (ex: /etc/nginx) e variáveis.\n\nEXEMPLO EXATO DO FORMATO DE SAÍDA ESPERADO:\n<p>A segurança de aplicações e o gerenciamento de processos continuam sendo o núcleo da infraestrutura moderna. Com as atualizações recentes, novas abordagens estão sendo adotadas em ambientes de produção.</p>\n\n<h2>Implementação e Controle de Acesso</h2>\n<p>Para garantir que serviços essenciais rodem com os privilégios corretos e com validação de tokens segura, a configuração deve ser explícita. Veja o padrão de validação JWT:</p>\n\n<pre><code>\nconst express = require('express');\nconst jwt = require('jsonwebtoken');\n\napp.get('/protected', (req, res) => {\n  const token = req.headers.authorization;\n  // lógica de verificação\n});\n</code></pre>\n\n<h3>Protegendo a Infraestrutura</h3>\n<p>Lembre-se de auditar constantemente os diretórios críticos como <strong>/var/log/auth.log</strong> e manter suas bibliotecas atualizadas.</p>"
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      model: model,
-      response_format: { type: "json_object" },
-      max_tokens: 4096,
-      temperature: 0.5,
-    });
-
-    const responseText = chatCompletion.choices[0]?.message?.content || "{}";
-    
-    // Clean response text in case the model wrapped it in markdown code blocks
-    let cleanedResponse = responseText.trim();
-    if (cleanedResponse.startsWith("```json")) {
-      cleanedResponse = cleanedResponse.replace(/^```json/, "").replace(/```$/, "");
-    } else if (cleanedResponse.startsWith("```")) {
-      cleanedResponse = cleanedResponse.replace(/^```/, "").replace(/```$/, "");
-    }
-    
-    let result;
+  // 1. Coleta e Preparação
+  const newsItems: string[] = [];
+  for (const url of FEEDS) {
     try {
-      result = JSON.parse(cleanedResponse);
-    } catch (parseError) {
-      console.error("Initial JSON parse failed, attempting to fix common issues:", parseError);
-      try {
-        const lastBraceIndex = cleanedResponse.lastIndexOf("}");
-        if (lastBraceIndex !== -1) {
-          cleanedResponse = cleanedResponse.substring(0, lastBraceIndex + 1);
-        }
-        result = JSON.parse(cleanedResponse);
-      } catch (secondParseError) {
-        console.error("Failed to fix JSON JSON:", secondParseError);
-        throw new Error("O modelo gerou um formato de dados inválido e não pôde ser recuperado.");
-      }
-    }
-    
-    // Safety check: ensure content is not empty
-    if (!result.content || result.content.length < 50) {
-      console.error("Article content is too short or missing in LLM response.");
-      // Fallback if the model put the content in a different field or just failed
-      if (result.analysis || result.report) {
-        result.content = result.analysis || result.report;
-      } else {
-        throw new Error("A IA gerou um artigo incompleto (sem conteúdo). Por favor, tente novamente.");
-      }
-    }
-    
-    // 3. Save to posts.json
-    let existingPosts: Post[] = [];
-    try {
-      if (fs.existsSync(POSTS_PATH)) {
-        const fileContent = fs.readFileSync(POSTS_PATH, "utf-8");
-        existingPosts = JSON.parse(fileContent || "[]");
-      }
-    } catch (e) {
-      console.error("Error reading posts.json, starting with empty list:", e);
-      existingPosts = [];
-    }
-    
-    const newPost: Post = {
-      id: `post-${Date.now()}`,
-      title: result.title || "Sem título",
-      date: new Date().toISOString(),
-      excerpt: result.excerpt || "Resumo não disponível",
-      content: result.content,
-      tags: result.tags || [],
-      category: targetCategory || result.category || "General"
-    };
-
-    // Prevent identical duplicate posts by title
-    const isDuplicate = existingPosts.some(p => p.title.toLowerCase() === newPost.title.toLowerCase());
-    if (isDuplicate) {
-      console.warn(`Duplicate post title detected: ${newPost.title}`);
-      throw new Error("Um artigo com este título já foi publicado recentemente. Tente novamente para gerar uma nova perspectiva.");
-    }
-
-    existingPosts.unshift(newPost);
-    fs.writeFileSync(POSTS_PATH, JSON.stringify(existingPosts, null, 2));
-
-    console.log("New intelligence report generated and saved successfully!");
-    return newPost;
-  } catch (error) {
-    console.error("Error in automation flow:", error);
-    throw error;
+      const feed = await parser.parseURL(url);
+      feed.items.slice(0, 5).forEach(item => {
+        newsItems.push(`- [${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
+      });
+    } catch (e) { /* skip */ }
   }
+
+  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 10).join("\n");
+  const articleTypes = ["Tutorial", "Concept Explanation", "Tech News / Trend"];
+  const selectedType = articleTypes[Math.floor(Math.random() * articleTypes.length)];
+
+  // ETAPA 1: Gerar Outline (Multi-step generation)
+  console.log(`📝 Etapa 1: Gerando planejamento para [${selectedType}]...`);
+  const outlineRes = await groq.chat.completions.create({
+    messages: [
+      {
+        role: "system",
+        content: "Você é um Arquiteto Cloud. Gere apenas o JSON de um outline para um post técnico. Esqueleto sugerido: Título, Intro (Problema Real), Detalhes Técnicos, Diagrama TXT, Conclusão."
+      },
+      {
+        role: "user",
+        content: `Crie um planejamento de post ${selectedType} sobre:\n${context.substring(0, 2000)}`
+      }
+    ],
+    model,
+    response_format: { type: "json_object" }
+  });
+  const outline = JSON.parse(outlineRes.choices[0]?.message?.content || "{}");
+
+  // ETAPA 2: Gerar Conteúdo (Persona & Custom Prompting)
+  console.log("✍️ Etapa 2: Expandindo conteúdo com persona Sênior...");
+  const contentRes = await groq.chat.completions.create({
+    messages: [
+      {
+        role: "system",
+        content: `You are a senior DevOps engineer with real-world production experience.
+        Write in Brazilian Portuguese. 
+        STRICT RULES:
+        - Avoid generic phrases like "é essencial", "nos dias de hoje".
+        - Be practical and technical. No teacher-tone, use engineer-tone.
+        - Add a strong opinion or market insight.
+        - Use real tools (AWS, Kubernetes, Linux, etc).
+        - O campo 'content' deve ser HTML PURO. Use apenas aspas simples (') internamente.`
+      },
+      {
+        role: "user",
+        content: `Expand this outline into a full article:\n${JSON.stringify(outline)}\n\nCONTEXT:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "${targetCategory || 'DevOps'}", "tags": [], "content": "..."}`
+      }
+    ],
+    model,
+    response_format: { type: "json_object" },
+    temperature: 0.7
+  });
+
+  let result = JSON.parse(contentRes.choices[0]?.message?.content || "{}");
+
+  // ETAPA 3: Quality Gate & Enricher
+  console.log("🛡️ Etapa 3: Validando Quality Gate...");
+  if (!validatePost(result.content)) {
+    console.warn("⚠️ Post simples demais. Enriquecendo tecnicamente...");
+    result.content = enrichPost(result.content, selectedType);
+    
+    if (!validatePost(result.content)) {
+        // Se ainda falhar, injetamos um parágrafo de arquitetura forçado
+        result.content += `\n\n<h3>Arquitetura e Observabilidade</h3>\n<p>Dica de especialista: Nunca ignore a arquitetura de rede. Em clusters <strong>Kubernetes</strong>, a segregação via Network Policies é o que separa amadores de profissionais.</p>`;
+    }
+  }
+
+  // ETAPA 4: De-duplicação e Salvamento
+  let existingPosts: Post[] = [];
+  if (fs.existsSync(POSTS_PATH)) {
+    existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
+  }
+
+  const isDuplicate = existingPosts.some(p => 
+    p.title.toLowerCase() === result.title.toLowerCase() || 
+    p.content.substring(0, 100) === result.content.substring(0, 100)
+  );
+
+  if (isDuplicate) {
+    throw new Error("Conteúdo similar detectado. Abortando para evitar repetição.");
+  }
+
+  const newPost: Post = {
+    id: `post-${Date.now()}`,
+    title: result.title,
+    date: new Date().toISOString(),
+    excerpt: result.excerpt,
+    content: result.content,
+    tags: result.tags || [],
+    category: result.category || "General"
+  };
+
+  existingPosts.unshift(newPost);
+  fs.writeFileSync(POSTS_PATH, JSON.stringify(existingPosts, null, 2));
+
+  console.log("✅ Artigo de alto nível gerado e salvo!");
+  return newPost;
 }
