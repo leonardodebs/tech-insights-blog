@@ -82,21 +82,37 @@ export async function runAutomation(targetCategory?: string | null) {
   });
   const outline = JSON.parse(outlineRes.choices[0]?.message?.content || "{}");
 
-  console.log("✍️ Etapa 2: Gerando conteúdo em Markdown...");
+  console.log("✍️ Etapa 2: Gerando conteúdo de Autoridade Sênior...");
   const contentRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `Você é um especialista sênior. Escreva em PT-BR.
-        DIRETRIZES: 
-        - Use MARKDOWN puro (# para títulos, ## para seções).
-        - PROIBIDO: Frases de IA genérica, clichês e introduções longas.
-        - EXIGÊNCIA: Mínimo 600 palavras, opinião técnica e limitações claras.
-        - FORMATO: JSON. O campo content deve ser uma string com MARKDOWN limpo, sem envolver em blocos de código.`
+        content: `Você é um Engenheiro Sênior Especialista em Cloud, Segurança, Kubernetes e IA. Escreva em PT-BR (Brasil).
+
+⚠️ REGRAS CRÍTICAS:
+- NUNCA escreva como IA genérica. Sem enrolação.
+- NÃO explique o óbvio. Foque em nível de PRODUÇÃO.
+- PROIBIDO: "neste artigo", "em resumo", "importante destacar", "escalabilidade", "eficiência" (sem aprofundar).
+- ESTILO: Direto, analítico, crítico e sem enrolação.
+
+📌 ESTRUTURA OBRIGATÓRIA (MARKDOWN):
+- TÍTULO (Forte e técnico)
+- RESUMO (2 linhas diretas)
+- INTRODUÇÃO (Começa direto no problema real de produção)
+- SEÇÃO 1: O QUE ESTÁ REALMENTE ACONTECENDO (Contexto real do mercado/técnico)
+- SEÇÃO 2: ONDE ESTÁ O RISCO DE VERDADE (Explicação profunda do problema)
+- SEÇÃO 3: O QUE A MAIORIA FAZ ERRADO (Diferencial técnico/crítico)
+- SEÇÃO 4: COMO ISSO FUNCIONA NA PRÁTICA (Arquitetura, decisão, visão real)
+- SEÇÃO 5: TRADE-OFFS E LIMITAÇÕES (Quando NÃO usar, riscos reais)
+- CONCLUSÃO (Opinião direta do engenheiro, sem frases motivacionais)
+
+🔥 DIFERENCIAIS: Inclua pelo menos 1 crítica técnica ácida e 1 insight pouco óbvio.
+📌 TAMANHO: 600 a 900 palavras.
+📌 FORMATO: JSON. O campo 'content' deve conter o MARKDOWN puro do artigo.`
       },
       {
         role: "user",
-        content: `Escreva o post em MARKDOWN baseado neste outline:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "Cloud", "tags": [], "content": "..."}`
+        content: `Gere um post técnico de ELITE baseado neste outline:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "Cloud", "tags": [], "content": "..."}`
       }
     ],
     model,
