@@ -36,5 +36,5 @@ jobs:
           git config --global user.name "AI Bot"
           git config --global user.email "bot@github.com"
           git add src/data/posts.json
-          git commit -m "Auto-Post: Weekly Intel [skip ci]" || echo "Nothing to commit"
+          git commit -m "Auto-Post: Weekly Intel" || echo "Nothing to commit"
           git push origin main
