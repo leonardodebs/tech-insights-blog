@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Terminal, LogOut, Sparkles, Loader2, CheckCircle2, 
   AlertCircle, Clock, RefreshCw, TrendingUp, FileText, 
-  Zap, Calendar, ArrowLeft
+  Zap, Calendar, ArrowLeft, Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import postsData from '../data/posts.json';
@@ -227,7 +227,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
               </div>
             </div>
 
-            <div className="space-y-2 min-h-[200px]">
+            <div className="space-y-2 min-h-[240px]">
               <AnimatePresence initial={false}>
                 {activity.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40 text-zinc-600">
@@ -260,7 +260,84 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
             </div>
           </motion.div>
         </div>
+
+        {/* Manage Posts Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
+        >
+          <div className="p-6 border-b border-zinc-800">
+            <h2 className="font-bold text-white text-lg">Gerenciar Posts</h2>
+            <p className="text-xs text-zinc-500">Exclua ou visualize os artigos publicados</p>
+          </div>
+
+          <div className="divide-y divide-zinc-800 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {postsData.map((post: any) => (
+              <div key={post.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
+                <div className="flex flex-col gap-1 pr-4 min-w-0">
+                  <h3 className="text-sm font-medium text-zinc-200 truncate">{post.title}</h3>
+                  <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+                    <span className="flex items-center gap-1 uppercase tracking-wider bg-zinc-800 px-1.5 py-0.5 rounded text-emerald-400">
+                      {post.category}
+                    </span>
+                    <span>{new Date(post.date).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => handleDeletePost(post.id, post.title)}
+                  className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all active:scale-90"
+                  title="Excluir post"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       </main>
     </div>
   );
+}
+
+// Add these to imports at the top
+// import { Trash2 } from 'lucide-react';
+
+async function handleDeletePost(id: string, title: string) {
+  if (!confirm(`Tem certeza que deseja excluir o post: "${title}"?\nEssa ação é irreversível.`)) return;
+
+  const btn = document.activeElement as HTMLButtonElement;
+  if (btn) btn.disabled = true;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-posts`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        },
+        body: JSON.stringify({ action: 'delete', postId: id })
+      }
+    );
+
+    const data = await response.json();
+    if (response.ok && data.success) {
+      alert('Solicitação de exclusão enviada! O post sumirá em breve (aguarde o build no GitHub).');
+      window.location.reload(); // Refresh to update stats, though the file on disk won't change yet locally
+    } else {
+      alert(`Erro ao excluir: ${data.error || 'Falha desconhecida'}`);
+    }
+  } catch (err) {
+    alert('Erro de conexão ao tentar excluir o post.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }

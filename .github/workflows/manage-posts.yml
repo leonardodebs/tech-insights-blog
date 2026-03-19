@@ -1,0 +1,74 @@
+name: "Admin - Manage Posts"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform (delete)'
+        required: true
+        default: 'delete'
+      postId:
+        description: 'ID of the post to delete'
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Perform Action
+        run: |
+          if [ "${{ github.event.inputs.action }}" == "delete" ]; then
+            echo "Deleting post with ID: ${{ github.event.inputs.postId }}"
+            # Use jq to remove the post with the matching id
+            jq 'del(.[] | select(.id == "${{ github.event.inputs.postId }}"))' src/data/posts.json > temp.json
+            mv temp.json src/data/posts.json
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Site
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "AI Bot"
+          git config --global user.email "bot@github.com"
+          git add src/data/posts.json
+          git commit -m "Admin: Removed post ${{ github.event.inputs.postId }} [skip ci]" || echo "Nothing to commit"
+          git push origin main
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
