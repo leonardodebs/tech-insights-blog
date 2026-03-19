@@ -51,7 +51,7 @@ export async function runAutomation(targetCategory?: string | null) {
   if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
 
   const groq = new Groq({ apiKey });
-  const model = "llama-3.3-70b-specdec";
+  const model = "llama-3.3-70b-versatile";
 
   // 1. Coleta e Preparação
   const newsItems: string[] = [];
