@@ -22,7 +22,7 @@ Este projeto utiliza **Groq (Llama 3.3 70B)** para processar feeds RSS globais e
     *   Autenticação via Supabase.
     *   API Keys protegidas em **Edge Functions** (nenhum segredo exposto no front).
     *   Disparo manual de workflows via GitHub API.
-*   **📅 Automação 24/7**: Workflow integrado via **GitHub Actions** para atualização automática toda segunda-feira às 8h00 (BRT).
+*   **📅 Automação 24/7**: Workflow integrado via **GitHub Actions** para atualização automática diária às 8h00 (BRT).
 
 ---
 
