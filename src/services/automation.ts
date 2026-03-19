@@ -34,34 +34,24 @@ const FEEDS = [
   "https://tecnoblog.net/feed/"
 ];
 
-// --- QUALITY GATES & ENRICHMENT ---
+// --- QUALITY GATES ---
 
 function validatePost(content: string): boolean {
   const lower = content.toLowerCase();
-  // Quality Gate: No posts under 600 chars, must have tech terms, must mention architecture
+  // Quality Gate: No posts under 600 chars, must have tech terms
   if (content.length < 600) return false;
-  if (!lower.includes("kubectl") && !lower.includes("aws") && !lower.includes("linux") && !lower.includes("docker")) return false;
-  if (!lower.includes("arquitetura")) return false;
-  return true;
-}
-
-function enrichPost(content: string, type: string): string {
-  let text = content;
-  // Automatically add practical examples if missing
-  if (!text.includes("kubectl") && (type === "Tutorial" || type === "Tech News / Trend")) {
-    text = text.replace("</p>\n<h3>", "</p>\n<p><strong>Insight Prático:</strong> Em cenários reais, a validação de recursos pode ser feita via terminal:</p>\n<pre><code>kubectl get pods -A\naws s3 ls</code></pre>\n<h3>");
-  }
-  return text;
+  const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
+  return techTerms.some(term => lower.includes(term));
 }
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando motor de automação profissional...");
+  console.log("🚀 Iniciando motor de automação sênior...");
 
   const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
 
   const groq = new Groq({ apiKey });
-  const model = "llama-3.1-8b-instant";
+  const model = "llama-3.3-70b-specdec";
 
   // 1. Coleta e Preparação
   const newsItems: string[] = [];
@@ -75,20 +65,22 @@ export async function runAutomation(targetCategory?: string | null) {
   }
 
   const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 10).join("\n");
-  const articleTypes = ["Tutorial", "Concept Explanation", "Tech News / Trend"];
+  const articleTypes = ["INSIGHT (opinião técnica)", "PRÁTICO (guia aplicado)", "NOTÍCIA + ANÁLISE"];
   const selectedType = articleTypes[Math.floor(Math.random() * articleTypes.length)];
 
-  // ETAPA 1: Gerar Outline (Multi-step generation)
+  // ETAPA 1: Gerar Outline Técnico
   console.log(`📝 Etapa 1: Gerando planejamento para [${selectedType}]...`);
   const outlineRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: "Você é um Arquiteto Cloud. Gere apenas o JSON de um outline para um post técnico. Esqueleto sugerido: Título, Intro (Problema Real), Detalhes Técnicos, Diagrama TXT, Conclusão."
+        content: `Você é um Arquiteto Cloud Sênior. Gere APENAS um objeto JSON de planejamento para um artigo do tipo ${selectedType}.
+        ESTRUTURA OBRIGATÓRIA: Título forte, Resumo direto, Intro, Seção 1 (Problema Real), Seção 2 (Explicação Objetiva), Seção 3 (Análise Prática), Seção 4 (Erros Comuns/Trade-offs), Seção 5 (Cenário Real), Conclusão Direta.
+        NUNCA use frases genéricas de IA.`
       },
       {
         role: "user",
-        content: `Crie um planejamento de post ${selectedType} sobre:\n${context.substring(0, 2000)}`
+        content: `Planejamento técnico sobre:\n${context.substring(0, 2000)}`
       }
     ],
     model,
@@ -96,43 +88,37 @@ export async function runAutomation(targetCategory?: string | null) {
   });
   const outline = JSON.parse(outlineRes.choices[0]?.message?.content || "{}");
 
-  // ETAPA 2: Gerar Conteúdo (Persona & Custom Prompting)
-  console.log("✍️ Etapa 2: Expandindo conteúdo com persona Sênior...");
+  // ETAPA 2: Gerar Conteúdo Sênior
+  console.log("✍️ Etapa 2: Expandindo conteúdo com persona Especialista...");
   const contentRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `You are a senior DevOps engineer with real-world production experience.
-        Write in Brazilian Portuguese. 
-        STRICT RULES:
-        - Avoid generic phrases like "é essencial", "nos dias de hoje".
-        - Be practical and technical. No teacher-tone, use engineer-tone.
-        - Add a strong opinion or market insight.
-        - Use real tools (AWS, Kubernetes, Linux, etc).
-        - O campo 'content' deve ser HTML PURO. Use apenas aspas simples (') internamente.`
+        content: `Você é um especialista sênior em Cloud, DevOps, Kubernetes, Linux e Segurança. Escreva em PT-BR.
+        DIRETRIZES CRÍTICAS:
+        - Estilo: Direto, técnico, sem enrolação. Linguagem de quem trabalha na área.
+        - PROIBIDO: "neste artigo você vai aprender", "em resumo", "é importante destacar", "nos dias de hoje".
+        - OBRIGATÓRIO: Texto de 600-900 palavras. Inclua opinião técnica, cenário real e 1 crítica ou limitação.
+        - FORMATO: JSON com campo 'content' em HTML semântico. NUNCA use concatenação (+).`
       },
       {
         role: "user",
-        content: `Expand this outline into a full article:\n${JSON.stringify(outline)}\n\nCONTEXT:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "${targetCategory || 'DevOps'}", "tags": [], "content": "..."}`
+        content: `Expanda este planejamento:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "${targetCategory || 'Cloud'}", "tags": [], "content": "..."}`
       }
     ],
     model,
     response_format: { type: "json_object" },
-    temperature: 0.7
+    temperature: 0.6
   });
 
-  let result = JSON.parse(contentRes.choices[0]?.message?.content || "{}");
+  let rawContent = contentRes.choices[0]?.message?.content || "{}";
+  rawContent = rawContent.replace(/"\s*\+\s*"/g, ""); // Limpeza de concatenação Hallucinated JS
+  let result = JSON.parse(rawContent);
 
-  // ETAPA 3: Quality Gate & Enricher
+  // ETAPA 3: Quality Gate
   console.log("🛡️ Etapa 3: Validando Quality Gate...");
   if (!validatePost(result.content)) {
-    console.warn("⚠️ Post simples demais. Enriquecendo tecnicamente...");
-    result.content = enrichPost(result.content, selectedType);
-    
-    if (!validatePost(result.content)) {
-        // Se ainda falhar, injetamos um parágrafo de arquitetura forçado
-        result.content += `\n\n<h3>Arquitetura e Observabilidade</h3>\n<p>Dica de especialista: Nunca ignore a arquitetura de rede. Em clusters <strong>Kubernetes</strong>, a segregação via Network Policies é o que separa amadores de profissionais.</p>`;
-    }
+    throw new Error("O post gerado não atingiu os critérios mínimos de qualidade técnica.");
   }
 
   // ETAPA 4: De-duplicação e Salvamento
