@@ -34,17 +34,15 @@ const FEEDS = [
   "https://tecnoblog.net/feed/"
 ];
 
-// --- QUALITY GATES ---
-
 function validatePost(content: string): boolean {
   const lower = content.toLowerCase();
-  if (content.length < 600) return false;
+  if (content.length < 500) return false;
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
   return techTerms.some(term => lower.includes(term));
 }
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando motor de automação sênior...");
+  console.log("🚀 Iniciando motor de automação sênior (v3)...");
 
   const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
@@ -52,7 +50,6 @@ export async function runAutomation(targetCategory?: string | null) {
   const groq = new Groq({ apiKey });
   const model = "llama-3.3-70b-versatile";
 
-  // 1. Coleta e Preparação
   const newsItems: string[] = [];
   for (const url of FEEDS) {
     try {
@@ -64,22 +61,20 @@ export async function runAutomation(targetCategory?: string | null) {
   }
 
   const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 10).join("\n");
-  const articleTypes = ["INSIGHT (opinião técnica)", "PRÁTICO (guia aplicado)", "NOTÍCIA + ANÁLISE"];
+  const articleTypes = ["INSIGHT", "PRÁTICO", "NOTÍCIA + ANÁLISE"];
   const selectedType = articleTypes[Math.floor(Math.random() * articleTypes.length)];
 
-  // ETAPA 1: Gerar Outline Técnico
-  console.log(`📝 Etapa 1: Gerando planejamento para [${selectedType}]...`);
+  console.log(`📝 Etapa 1: Planejamento [${selectedType}]...`);
   const outlineRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `Você é um Arquiteto Cloud Sênior. Gere APENAS um objeto JSON de planejamento para um artigo do tipo ${selectedType}.
-        ESTRUTURA OBRIGATÓRIA: Título forte, Resumo direto, Intro, Seção 1 (Problema Real), Seção 2 (Explicação Objetiva), Seção 3 (Análise Prática), Seção 4 (Erros Comuns/Trade-offs), Seção 5 (Cenário Real), Conclusão Direta.
-        NUNCA use frases genéricas de IA.`
+        content: `Você é um Arquiteto Cloud Sênior. Gere um JSON de planejamento para um post do tipo ${selectedType}. 
+        Seções: Intro, Problema, Explicação, Análise, Trade-offs, Caso Real, Conclusão.`
       },
       {
         role: "user",
-        content: `Planejamento técnico sobre:\n${context.substring(0, 2000)}`
+        content: `Crie o outline sobre:\n${context.substring(0, 2000)}`
       }
     ],
     model,
@@ -87,23 +82,21 @@ export async function runAutomation(targetCategory?: string | null) {
   });
   const outline = JSON.parse(outlineRes.choices[0]?.message?.content || "{}");
 
-  // ETAPA 2: Gerar Conteúdo Sênior
-  console.log("✍️ Etapa 2: Expandindo conteúdo com persona Especialista...");
+  console.log("✍️ Etapa 2: Gerando conteúdo em Markdown...");
   const contentRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `Você é um especialista sênior em Cloud, DevOps, Kubernetes, Linux e Segurança. Escreva em PT-BR.
-        DIRETRIZES CRÍTICAS:
-        - Estilo: Direto, técnico, sem enrolação. Linguagem de quem trabalha na área.
-        - PROIBIDO: "neste artigo você vai aprender", "em resumo", "é importante destacar", "nos dias de hoje".
-        - OBRIGATÓRIO: Texto de 600-900 palavras. Inclua opinião técnica e trade-offs.
-        - FORMATO: JSON com campo 'content' em HTML semântico puro. 
-        - REGRA DE OURO: NUNCA use blocos de código markdown ou crases no valor do campo 'content'.`
+        content: `Você é um especialista sênior. Escreva em PT-BR.
+        DIRETRIZES: 
+        - Use MARKDOWN puro (# para títulos, ## para seções).
+        - PROIBIDO: Frases de IA genérica, clichês e introduções longas.
+        - EXIGÊNCIA: Mínimo 600 palavras, opinião técnica e limitações claras.
+        - FORMATO: JSON. O campo content deve ser uma string com MARKDOWN limpo, sem envolver em blocos de código.`
       },
       {
         role: "user",
-        content: `Expanda este planejamento:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "${targetCategory || 'Cloud'}", "tags": [], "content": "..."}`
+        content: `Escreva o post em MARKDOWN baseado neste outline:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "Cloud", "tags": [], "content": "..."}`
       }
     ],
     model,
@@ -112,20 +105,16 @@ export async function runAutomation(targetCategory?: string | null) {
   });
 
   let rawContent = contentRes.choices[0]?.message?.content || "{}";
-  
-  // Limpeza de emergência: Remove tentativas da IA de usar concatenação ou blocos de código markdown
-  rawContent = rawContent.replace(/"\s*\+\s*"/g, ""); 
-  rawContent = rawContent.replace(/```html|```/g, ""); 
+  // Limpeza de segurança para evitar backticks indesejados no JSON
+  rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
   
   let result = JSON.parse(rawContent);
 
-  // ETAPA 3: Quality Gate
-  console.log("🛡️ Etapa 3: Validando Quality Gate...");
+  console.log("🛡️ Etapa 3: Validação...");
   if (!validatePost(result.content)) {
-    throw new Error("O post gerado não atingiu os critérios mínimos de qualidade técnica.");
+    throw new Error("Post reprovado pelo Quality Gate técnico.");
   }
 
-  // ETAPA 4: De-duplicação e Salvamento
   let existingPosts: Post[] = [];
   if (fs.existsSync(POSTS_PATH)) {
     existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
@@ -136,9 +125,7 @@ export async function runAutomation(targetCategory?: string | null) {
     p.content.substring(0, 100) === result.content.substring(0, 100)
   );
 
-  if (isDuplicate) {
-    throw new Error("Conteúdo similar detectado. Abortando para evitar repetição.");
-  }
+  if (isDuplicate) throw new Error("Conteúdo duplicado.");
 
   const newPost: Post = {
     id: `post-${Date.now()}`,
@@ -147,12 +134,12 @@ export async function runAutomation(targetCategory?: string | null) {
     excerpt: result.excerpt,
     content: result.content,
     tags: result.tags || [],
-    category: result.category || "General"
+    category: result.category || "Cloud"
   };
 
   existingPosts.unshift(newPost);
   fs.writeFileSync(POSTS_PATH, JSON.stringify(existingPosts, null, 2));
 
-  console.log("✅ Artigo de alto nível gerado e salvo!");
+  console.log("✅ Artigo gerado com sucesso!");
   return newPost;
 }
