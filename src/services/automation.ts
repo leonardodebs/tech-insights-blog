@@ -38,7 +38,6 @@ const FEEDS = [
 
 function validatePost(content: string): boolean {
   const lower = content.toLowerCase();
-  // Quality Gate: No posts under 600 chars, must have tech terms
   if (content.length < 600) return false;
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
   return techTerms.some(term => lower.includes(term));
@@ -98,8 +97,9 @@ export async function runAutomation(targetCategory?: string | null) {
         DIRETRIZES CRÍTICAS:
         - Estilo: Direto, técnico, sem enrolação. Linguagem de quem trabalha na área.
         - PROIBIDO: "neste artigo você vai aprender", "em resumo", "é importante destacar", "nos dias de hoje".
-        - OBRIGATÓRIO: Texto de 600-900 palavras. Inclua opinião técnica, cenário real e 1 crítica ou limitação.
-        - FORMATO: JSON com campo 'content' em HTML semântico. NUNCA use concatenação (+).`
+        - OBRIGATÓRIO: Texto de 600-900 palavras. Inclua opinião técnica e trade-offs.
+        - FORMATO: JSON com campo 'content' em HTML semântico puro. 
+        - REGRA DE OURO: NUNCA use blocos de código markdown ou crases no valor do campo 'content'.`
       },
       {
         role: "user",
@@ -112,7 +112,11 @@ export async function runAutomation(targetCategory?: string | null) {
   });
 
   let rawContent = contentRes.choices[0]?.message?.content || "{}";
-  rawContent = rawContent.replace(/"\s*\+\s*"/g, ""); // Limpeza de concatenação Hallucinated JS
+  
+  // Limpeza de emergência: Remove tentativas da IA de usar concatenação ou blocos de código markdown
+  rawContent = rawContent.replace(/"\s*\+\s*"/g, ""); 
+  rawContent = rawContent.replace(/```html|```/g, ""); 
+  
   let result = JSON.parse(rawContent);
 
   // ETAPA 3: Quality Gate
