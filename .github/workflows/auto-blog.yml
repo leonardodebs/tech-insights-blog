@@ -2,14 +2,20 @@ name: "AI Blog - Generate Weekly Post"
 
 on:
   schedule:
-    - cron: '0 11 * * 1'  # Segunda-feira às 8h00 BRT (11h00 UTC)
+    - cron: '0 11 * * 1' # Toda segunda-feira às 11:00 UTC (8:00 AM Brasília)
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  generate-post:
+  generate-publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -29,12 +35,30 @@ jobs:
       - name: Generate AI Post
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch(() => process.exit(1))"
+        run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
 
-      - name: Commit Generated Post
+      - name: Build Site
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Commit and Push Data
         run: |
           git config --global user.name "AI Bot"
           git config --global user.email "bot@github.com"
           git add src/data/posts.json
-          git commit -m "Auto-Post: Weekly Intel" || echo "Nothing to commit"
+          git commit -m "Auto-Post: Data Sync [skip ci]" || echo "Nothing to commit"
           git push origin main
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
