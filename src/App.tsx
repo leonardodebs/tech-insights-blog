@@ -27,12 +27,24 @@ export default function App() {
     }
   }, []);
 
+  // Sync URL with selected post
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedPost) {
+      url.searchParams.set('post', selectedPost.id);
+    } else {
+      url.searchParams.delete('post');
+    }
+    window.history.pushState({}, '', url.toString());
+  }, [selectedPost]);
+
   const handleShare = async () => {
-    const url = window.location.href;
+    if (!selectedPost) return;
+    const url = `${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`;
     try {
       await navigator.clipboard.writeText(url);
       setIsCopied(true);
-      setToast({ message: 'Link copiado para a área de transferência!', type: 'success' });
+      setToast({ message: 'Link do post copiado!', type: 'success' });
       setTimeout(() => setIsCopied(false), 2000);
     } catch {
       setToast({ message: 'Erro ao copiar link.', type: 'error' });
@@ -41,14 +53,14 @@ export default function App() {
 
   const shareOnTwitter = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(window.location.href);
+    const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`);
     const text = encodeURIComponent(`Confira este artigo: ${selectedPost.title}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
   };
 
   const shareOnLinkedIn = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(window.location.href);
+    const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`);
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
   };
 
