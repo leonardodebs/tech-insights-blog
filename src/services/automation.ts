@@ -37,14 +37,12 @@ const FEEDS = [
 function validatePost(content: string | undefined): boolean {
   if (!content) return false;
   const lower = content.toLowerCase();
-  
-  // Critérios Sênior
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
-  const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando"];
+  const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "escalável", "preciso", "líder de mercado"];
   
   const hasTechTerm = techTerms.some(term => lower.includes(term));
   const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
-  const hasMinLength = content.length > 1500; // Aproximadamente 600 palavras
+  const hasMinLength = content.length >= 3000; // Mínimo de 600+ palavras
 
   return hasTechTerm && !hasForbiddenTerm && hasMinLength;
 }
@@ -129,10 +127,11 @@ Antes de escrever, defina mentalmente: "Esse post explica que: ________". Se nã
   
   let result = JSON.parse(rawContent);
 
-  console.log("🛡️ Etapa 2: Validando Qualidade Técnica...");
+  console.log("🛡️ Etapa 2: Validando Qualidade Técnica (Check-list Sênior)...");
   if (!result || !result.content || !validatePost(result.content)) {
-    console.error("❌ Post reprovado no Quality Gate sênior (Clichês ou densidade baixa).");
-    if (!result || !result.content) throw new Error("A IA falhou em retornar o conteúdo obrigatório.");
+    const errorMsg = "❌ POST REPROVADO: O artigo gerado não atingiu o nível de autoridade exigido (clichês proibidos ou texto curto demais).";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   const newPost: Post = {
