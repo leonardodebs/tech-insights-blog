@@ -75,65 +75,70 @@ export async function runAutomation(targetCategory?: string | null) {
 
   const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 12).join("\n");
 
-  console.log("✍️ Etapa 1: Gerando Análise Técnica Master Architect...");
-  const contentRes = await groq.chat.completions.create({
-    messages: [
-      {
-        role: "system",
-        content: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
+  const maxAttempts = 3;
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando Análise Técnica Master Architect...`);
+    
+    const contentRes = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
 Seu papel é transformar notícias em análise técnica profunda, insight prático e opinião baseada em experiência real.
 
-⚠️ REGRAS CRÍTICAS:
-- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando".
-- NÃO listar notícias. Integre tudo em uma narrativa única e direta. Foco em UM problema ou tendência.
-- TOM: Direto, técnico, sem enrolação, frases curtas. Pareça alguém que já trabalhou com isso em produção.
-- OBRIGATÓRIO: 1 insight não óbvio, 1 erro comum real, 1 impacto prático.
-- PROIBIDO: Passo a passo, YAML, JSON, código longo, explicação básica.
-
-🧠 LÓGICA DE ESCRITA:
-Antes de escrever, defina mentalmente: "Esse post explica que: ________". Se não houver uma tese técnica forte, reescreva.
+⚠️ REGRAS CRÍTICAS (A NÃO OBSERVÂNCIA RESULTARÁ EM REJEIÇÃO):
+- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucinário", "inovador", "escalável", "preciso", "líder de mercado".
+- MÍNIMO de 650 palavras. Seja denso e detalhista.
+- NÃO listar notícias. Integre tudo em uma narrativa técnica direta.
+- FOCO: Explique o "Como" e os "Trade-offs" de arquitetura.
 
 📌 ESTRUTURA OBRIGATÓRIA (DENTRO DO CAMPO 'CONTENT'):
 # [TÍTULO IMPACTANTE]
-> Resumo (2-3 linhas diretas ao ponto)
+> Resumo (2-3 linhas diretas)
 
-## O que está acontecendo de verdade (Conecte as notícias e o contexto real)
-## Onde está o risco (ou oportunidade) (Impacto técnico real e onde sistemas quebram)
-## Onde a maioria erra (Erro comum real e decisão equivocada)
-## O que muda na prática (Arquitetura, decisões técnicas, operação SRE)
-## Trade-offs (Custo vs Performance, Segurança vs Simplicidade)
-## Conclusão direta (Uma ideia forte sem repetir texto)
-
+## O que está acontecendo de verdade
+## Onde está o risco (ou oportunidade)
+## Onde a maioria erra
+## O que muda na prática
+## Trade-offs
+## Conclusão direta
 ## Fontes (Lista no formato: [Fonte: Nome] Título)
 
-⚠️ REGRAS DE QUALIDADE:
-- Tamanho: 600 a 750 palavras.
-- FORMATO JSON ESTRITO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.
-- PROIBIDO criar campos extras no JSON raiz.`
-      },
-      {
-        role: "user",
-        content: `Últimos temas evitados: ${recentThemes}\n\nNotícias para análise:\n${context.substring(0, 3000)}`
+⚠️ FORMATO JSON EXCLUSIVO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.`
+        },
+        {
+          role: "user",
+          content: `Últimos temas evitados: ${recentThemes}\n\nCrie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`
+        }
+      ],
+      model,
+      response_format: { type: "json_object" },
+      temperature: 0.5,
+      max_tokens: 4096
+    });
+
+    let rawContent = contentRes.choices[0]?.message?.content || "{}";
+    rawContent = rawContent.replace(/```markdown|```html|```json|```/g, ""); 
+    
+    const result = JSON.parse(rawContent);
+
+    console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
+    if (result && result.content && validatePost(result.content)) {
+      lastResult = result;
+      break; // Sucesso!
+    } else {
+      console.warn(`⚠️ Tentativa ${attempt} reprovada. O artigo era muito curto ou continha clichês.`);
+      if (attempt === maxAttempts) {
+        const errorMsg = "❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após 3 tentativas.";
+        console.error(errorMsg);
+        throw new Error(errorMsg);
       }
-    ],
-    model,
-    response_format: { type: "json_object" },
-    temperature: 0.5,
-    max_tokens: 4096
-  });
-
-  let rawContent = contentRes.choices[0]?.message?.content || "{}";
-  rawContent = rawContent.replace(/```markdown|```html|```json|```/g, ""); 
-  
-  let result = JSON.parse(rawContent);
-
-  console.log("🛡️ Etapa 2: Validando Qualidade Técnica (Check-list Sênior)...");
-  if (!result || !result.content || !validatePost(result.content)) {
-    const errorMsg = "❌ POST REPROVADO: O artigo gerado não atingiu o nível de autoridade exigido (clichês proibidos ou texto curto demais).";
-    console.error(errorMsg);
-    throw new Error(errorMsg);
+    }
   }
 
+  const result = lastResult!;
   const newPost: Post = {
     id: `post-${Date.now()}`,
     title: result.title,
