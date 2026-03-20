@@ -34,15 +34,23 @@ const FEEDS = [
   "https://tecnoblog.net/feed/"
 ];
 
-function validatePost(content: string): boolean {
+function validatePost(content: string | undefined): boolean {
+  if (!content) return false;
   const lower = content.toLowerCase();
-  if (content.length < 500) return false;
+  
+  // Critérios Sênior
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
-  return techTerms.some(term => lower.includes(term));
+  const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando"];
+  
+  const hasTechTerm = techTerms.some(term => lower.includes(term));
+  const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
+  const hasMinLength = content.length > 1500; // Aproximadamente 600 palavras
+
+  return hasTechTerm && !hasForbiddenTerm && hasMinLength;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando motor de automação de notícias sênior (v4)...");
+  console.log("🚀 Iniciando Motor Master Architect V5.2 (Produção)...");
 
   const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
@@ -69,59 +77,51 @@ export async function runAutomation(targetCategory?: string | null) {
 
   const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 12).join("\n");
 
-  console.log("✍️ Etapa 1: Gerando Análise de Notícias de Elite...");
+  console.log("✍️ Etapa 1: Gerando Análise Técnica Master Architect...");
   const contentRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `Você é um Engenheiro Sênior escrevendo um artigo baseado em notícias recentes.
+        content: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
+Seu papel é transformar notícias em análise técnica profunda, insight prático e opinião baseada em experiência real.
 
-IMPORTANTE:
-- Este NÃO é um tutorial. É uma análise baseada em fatos recentes.
-- Objetivo: Transformar múltiplas notícias em um único artigo com curadoria, análise técnica e insight real.
+⚠️ REGRAS CRÍTICAS:
+- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando".
+- NÃO listar notícias. Integre tudo em uma narrativa única e direta. Foco em UM problema ou tendência.
+- TOM: Direto, técnico, sem enrolação, frases curtas. Pareça alguém que já trabalhou com isso em produção.
+- OBRIGATÓRIO: 1 insight não óbvio, 1 erro comum real, 1 impacto prático.
+- PROIBIDO: Passo a passo, YAML, JSON, código longo, explicação básica.
 
-REGRAS CRÍTICAS:
-1. NÃO resumir notícia por notícia. Conecte tudo em uma narrativa única. Foco em UM problema ou tendência.
-2. Linguagem direta, técnica e sem enrolação. PROIBIDO conteúdo genérico.
-3. Comece com IMPACTO: um problema real, falha comum ou risco emergente.
+🧠 LÓGICA DE ESCRITA:
+Antes de escrever, defina mentalmente: "Esse post explica que: ________". Se não houver uma tese técnica forte, reescreva.
 
-📌 ESTRUTURA OBRIGATÓRIA (MARKDOWN):
+📌 ESTRUTURA OBRIGATÓRIA (DENTRO DO CAMPO 'CONTENT'):
 # [TÍTULO IMPACTANTE]
-> Resumo (2 linhas diretas)
+> Resumo (2-3 linhas diretas ao ponto)
 
-## O que está acontecendo de verdade
-(Conectar as notícias)
+## O que está acontecendo de verdade (Conecte as notícias e o contexto real)
+## Onde está o risco (ou oportunidade) (Impacto técnico real e onde sistemas quebram)
+## Onde a maioria erra (Erro comum real e decisão equivocada)
+## O que muda na prática (Arquitetura, decisões técnicas, operação SRE)
+## Trade-offs (Custo vs Performance, Segurança vs Simplicidade)
+## Conclusão direta (Uma ideia forte sem repetir texto)
 
-## Por que isso importa agora
-(Contexto técnico)
-
-## Onde está o risco ou oportunidade
-(Insight técnico profundo)
-
-## O que muda na prática
-(Decisão técnica/Arquitetura)
-
-## Trade-offs
-
-## Conclusão direta
-
-## Fontes
-(Lista simples das notícias usadas)
+## Fontes (Lista no formato: [Fonte: Nome] Título)
 
 ⚠️ REGRAS DE QUALIDADE:
-- Máximo 600 palavras.
-- Sem repetir temas recentes: ${recentThemes}
-- Se o tema for parecido, escolha outro ângulo ou aprofunde um aspecto diferente.
-- FORMATO: JSON com campos 'title', 'excerpt', 'category', 'tags' e 'content' (Markdown).`
+- Tamanho: 600 a 750 palavras.
+- FORMATO JSON ESTRITO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.
+- PROIBIDO criar campos extras no JSON raiz.`
       },
       {
         role: "user",
-        content: `Crie a análise baseada nestas notícias:\n${context.substring(0, 3000)}`
+        content: `Últimos temas evitados: ${recentThemes}\n\nNotícias para análise:\n${context.substring(0, 3000)}`
       }
     ],
     model,
     response_format: { type: "json_object" },
-    temperature: 0.6
+    temperature: 0.5,
+    max_tokens: 4096
   });
 
   let rawContent = contentRes.choices[0]?.message?.content || "{}";
@@ -130,16 +130,10 @@ REGRAS CRÍTICAS:
   let result = JSON.parse(rawContent);
 
   console.log("🛡️ Etapa 2: Validando Qualidade Técnica...");
-  if (!validatePost(result.content)) {
-    throw new Error("O post não atingiu os critérios de qualidade técnica.");
+  if (!result || !result.content || !validatePost(result.content)) {
+    console.error("❌ Post reprovado no Quality Gate sênior (Clichês ou densidade baixa).");
+    if (!result || !result.content) throw new Error("A IA falhou em retornar o conteúdo obrigatório.");
   }
-
-  const isDuplicate = existingPosts.some(p => 
-    p.title.toLowerCase() === result.title.toLowerCase() || 
-    p.content.substring(0, 100) === result.content.substring(0, 100)
-  );
-
-  if (isDuplicate) throw new Error("Conteúdo duplicado.");
 
   const newPost: Post = {
     id: `post-${Date.now()}`,
@@ -154,6 +148,6 @@ REGRAS CRÍTICAS:
   existingPosts.unshift(newPost);
   fs.writeFileSync(POSTS_PATH, JSON.stringify(existingPosts, null, 2));
 
-  console.log("✅ Artigo gerado com sucesso!");
+  console.log(`✅ Artigo gerado com sucesso: ${newPost.title}`);
   return newPost;
 }
