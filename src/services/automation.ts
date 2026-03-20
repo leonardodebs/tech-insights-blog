@@ -42,7 +42,7 @@ function validatePost(content: string): boolean {
 }
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando motor de automação sênior (v3)...");
+  console.log("🚀 Iniciando motor de automação de notícias sênior (v4)...");
 
   const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
@@ -50,69 +50,73 @@ export async function runAutomation(targetCategory?: string | null) {
   const groq = new Groq({ apiKey });
   const model = "llama-3.3-70b-versatile";
 
+  let existingPosts: Post[] = [];
+  if (fs.existsSync(POSTS_PATH)) {
+    existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
+  }
+
+  const recentThemes = existingPosts.slice(0, 5).map(p => p.title).join(", ");
+
   const newsItems: string[] = [];
   for (const url of FEEDS) {
     try {
       const feed = await parser.parseURL(url);
       feed.items.slice(0, 5).forEach(item => {
-        newsItems.push(`- [${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
+        newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
       });
     } catch (e) { /* skip */ }
   }
 
-  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 10).join("\n");
-  const articleTypes = ["INSIGHT", "PRÁTICO", "NOTÍCIA + ANÁLISE"];
-  const selectedType = articleTypes[Math.floor(Math.random() * articleTypes.length)];
+  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 12).join("\n");
 
-  console.log(`📝 Etapa 1: Planejamento [${selectedType}]...`);
-  const outlineRes = await groq.chat.completions.create({
-    messages: [
-      {
-        role: "system",
-        content: `Você é um Arquiteto Cloud Sênior. Gere um JSON de planejamento para um post do tipo ${selectedType}. 
-        Seções: Intro, Problema, Explicação, Análise, Trade-offs, Caso Real, Conclusão.`
-      },
-      {
-        role: "user",
-        content: `Crie o outline sobre:\n${context.substring(0, 2000)}`
-      }
-    ],
-    model,
-    response_format: { type: "json_object" }
-  });
-  const outline = JSON.parse(outlineRes.choices[0]?.message?.content || "{}");
-
-  console.log("✍️ Etapa 2: Gerando conteúdo de Autoridade Sênior...");
+  console.log("✍️ Etapa 1: Gerando Análise de Notícias de Elite...");
   const contentRes = await groq.chat.completions.create({
     messages: [
       {
         role: "system",
-        content: `Você é um Engenheiro Sênior Especialista em Cloud, Segurança, Kubernetes e IA. Escreva em PT-BR (Brasil).
+        content: `Você é um Engenheiro Sênior escrevendo um artigo baseado em notícias recentes.
 
-⚠️ REGRAS CRÍTICAS:
-- NUNCA escreva como IA genérica. Sem enrolação.
-- NÃO explique o óbvio. Foque em nível de PRODUÇÃO.
-- PROIBIDO: "neste artigo", "em resumo", "importante destacar", "escalabilidade", "eficiência" (sem aprofundar).
-- ESTILO: Direto, analítico, crítico e sem enrolação.
+IMPORTANTE:
+- Este NÃO é um tutorial. É uma análise baseada em fatos recentes.
+- Objetivo: Transformar múltiplas notícias em um único artigo com curadoria, análise técnica e insight real.
+
+REGRAS CRÍTICAS:
+1. NÃO resumir notícia por notícia. Conecte tudo em uma narrativa única. Foco em UM problema ou tendência.
+2. Linguagem direta, técnica e sem enrolação. PROIBIDO conteúdo genérico.
+3. Comece com IMPACTO: um problema real, falha comum ou risco emergente.
 
 📌 ESTRUTURA OBRIGATÓRIA (MARKDOWN):
-- TÍTULO (Forte e técnico)
-- RESUMO (2 linhas diretas)
-- INTRODUÇÃO (Começa direto no problema real de produção)
-- SEÇÃO 1: O QUE ESTÁ REALMENTE ACONTECENDO (Contexto real do mercado/técnico)
-- SEÇÃO 2: ONDE ESTÁ O RISCO DE VERDADE (Explicação profunda do problema)
-- SEÇÃO 3: O QUE A MAIORIA FAZ ERRADO (Diferencial técnico/crítico)
-- SEÇÃO 4: COMO ISSO FUNCIONA NA PRÁTICA (Arquitetura, decisão, visão real)
-- SEÇÃO 5: TRADE-OFFS E LIMITAÇÕES (Quando NÃO usar, riscos reais)
-- CONCLUSÃO (Opinião direta do engenheiro, sem frases motivacionais)
+# [TÍTULO IMPACTANTE]
+> Resumo (2 linhas diretas)
 
-🔥 DIFERENCIAIS: Inclua pelo menos 1 crítica técnica ácida e 1 insight pouco óbvio.
-📌 TAMANHO: 600 a 900 palavras.
-📌 FORMATO: JSON. O campo 'content' deve conter o MARKDOWN puro do artigo.`
+## O que está acontecendo de verdade
+(Conectar as notícias)
+
+## Por que isso importa agora
+(Contexto técnico)
+
+## Onde está o risco ou oportunidade
+(Insight técnico profundo)
+
+## O que muda na prática
+(Decisão técnica/Arquitetura)
+
+## Trade-offs
+
+## Conclusão direta
+
+## Fontes
+(Lista simples das notícias usadas)
+
+⚠️ REGRAS DE QUALIDADE:
+- Máximo 600 palavras.
+- Sem repetir temas recentes: ${recentThemes}
+- Se o tema for parecido, escolha outro ângulo ou aprofunde um aspecto diferente.
+- FORMATO: JSON com campos 'title', 'excerpt', 'category', 'tags' e 'content' (Markdown).`
       },
       {
         role: "user",
-        content: `Gere um post técnico de ELITE baseado neste outline:\n${JSON.stringify(outline)}\n\nCONTEXTO:\n${context.substring(0, 2000)}\n\nJSON SCHEMA: {"title": "...", "excerpt": "...", "category": "Cloud", "tags": [], "content": "..."}`
+        content: `Crie a análise baseada nestas notícias:\n${context.substring(0, 3000)}`
       }
     ],
     model,
@@ -121,19 +125,13 @@ export async function runAutomation(targetCategory?: string | null) {
   });
 
   let rawContent = contentRes.choices[0]?.message?.content || "{}";
-  // Limpeza de segurança para evitar backticks indesejados no JSON
-  rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
+  rawContent = rawContent.replace(/```markdown|```html|```json|```/g, ""); 
   
   let result = JSON.parse(rawContent);
 
-  console.log("🛡️ Etapa 3: Validação...");
+  console.log("🛡️ Etapa 2: Validando Qualidade Técnica...");
   if (!validatePost(result.content)) {
-    throw new Error("Post reprovado pelo Quality Gate técnico.");
-  }
-
-  let existingPosts: Post[] = [];
-  if (fs.existsSync(POSTS_PATH)) {
-    existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
+    throw new Error("O post não atingiu os critérios de qualidade técnica.");
   }
 
   const isDuplicate = existingPosts.some(p => 
