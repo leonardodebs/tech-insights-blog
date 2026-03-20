@@ -1,4 +1,4 @@
-name: "AI Blog - Generate Weekly Post"
+name: "AI Blog - Generate Daily Post"
 
 on:
   schedule:
