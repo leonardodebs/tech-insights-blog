@@ -39,7 +39,7 @@ function validatePost(content: string | undefined): boolean {
   const lower = content.toLowerCase();
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
   const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "escalável", "preciso", "líder de mercado"];
-  
+
   const hasTechTerm = techTerms.some(term => lower.includes(term));
   const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
   const hasMinLength = content.length >= 3000; // Mínimo de 600+ palavras
@@ -80,7 +80,7 @@ export async function runAutomation(targetCategory?: string | null) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando Análise Técnica Master Architect...`);
-    
+
     const contentRes = await groq.chat.completions.create({
       messages: [
         {
@@ -93,6 +93,8 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
 - MÍNIMO de 650 palavras. Seja denso e detalhista.
 - NÃO listar notícias. Integre tudo em uma narrativa técnica direta.
 - FOCO: Explique o "Como" e os "Trade-offs" de arquitetura.
+
+- CATEGORIA OBRIGATÓRIA: Escolha EXCLUSIVAMENTE uma das seguintes categorias para o campo 'category': [Cloud, Linux, AI, Security, DevOps, Startups]. É PROIBIDO criar categorias novas ou mistas.
 
 📌 ESTRUTURA OBRIGATÓRIA (DENTRO DO CAMPO 'CONTENT'):
 # [TÍTULO IMPACTANTE]
@@ -110,7 +112,7 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
         },
         {
           role: "user",
-          content: `Últimos temas evitados: ${recentThemes}\n\nCrie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`
+          content: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`
         }
       ],
       model,
@@ -120,8 +122,8 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
     });
 
     let rawContent = contentRes.choices[0]?.message?.content || "{}";
-    rawContent = rawContent.replace(/```markdown|```html|```json|```/g, ""); 
-    
+    rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
+
     const result = JSON.parse(rawContent);
 
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
@@ -139,6 +141,23 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
   }
 
   const result = lastResult!;
+  
+  // Limpeza e Normalização de Categoria (Garante que o post apareça no menu)
+  const validCategories = ["Cloud", "Linux", "AI", "Security", "DevOps", "Startups"];
+  let finalCategory = result.category || "Cloud";
+  
+  // Se a IA inventar nomes em PT ou errados, mapeamos para os oficiais
+  if (!validCategories.includes(finalCategory)) {
+    const lowerCat = finalCategory.toLowerCase();
+    if (lowerCat.includes("segur") || lowerCat.includes("cyber") || lowerCat.includes("security")) finalCategory = "Security";
+    else if (lowerCat.includes("inteligenc") || lowerCat.includes("ai") || lowerCat.includes("ia")) finalCategory = "AI";
+    else if (lowerCat.includes("nuve") || lowerCat.includes("cloud")) finalCategory = "Cloud";
+    else if (lowerCat.includes("start") || lowerCat.includes("negoci")) finalCategory = "Startups";
+    else if (lowerCat.includes("dev") || lowerCat.includes("ops")) finalCategory = "DevOps";
+    else if (lowerCat.includes("lin") || lowerCat.includes("bash")) finalCategory = "Linux";
+    else finalCategory = "Cloud"; // Fallback final
+  }
+
   const newPost: Post = {
     id: `post-${Date.now()}`,
     title: result.title,
@@ -146,7 +165,7 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
     excerpt: result.excerpt,
     content: result.content,
     tags: result.tags || [],
-    category: result.category || "Cloud"
+    category: finalCategory
   };
 
   existingPosts.unshift(newPost);
