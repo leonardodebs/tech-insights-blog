@@ -105,7 +105,7 @@ export default function Layout({
               <Terminal className="w-5 h-5 text-emerald-500" />
               <span className="font-bold text-lg text-zinc-900 dark:text-white">TechPulse AI</span>
             </div>
-            <p className="text-sm text-zinc-500">Automação inteligente de notícias tech - by Leonardo Debs</p>
+            <p className="text-sm text-zinc-500">Automação inteligente de notícias tech - Leonardo Debs</p>
           </div>
           
           <div className="flex gap-6">
@@ -121,7 +121,7 @@ export default function Layout({
           </div>
         </div>
         <div className="max-w-4xl mx-auto px-6 mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800/30 text-center text-xs text-zinc-500 dark:text-zinc-600">
-          © 2026 TechPulse AI. Built with Gemini & React - by Leonardo Debs
+          © 2026 TechPulse AI. Built with Gemini & React
         </div>
       </footer>
     </div>
