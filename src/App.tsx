@@ -81,13 +81,20 @@ export default function App() {
   }, [posts, selectedCategory, searchQuery]);
 
   const closeToast = useCallback(() => setToast(null), []);
+  const handleReset = useCallback(() => {
+    setSelectedCategory(null);
+    setSelectedPost(null);
+    setSearchQuery('');
+  }, []);
 
   return (
     <Layout
       selectedCategory={selectedCategory}
+      onReset={handleReset}
       onSelectCategory={(cat) => {
         setSelectedCategory(cat);
         setSelectedPost(null);
+        setSearchQuery('');
       }}
     >
       <AnimatePresence mode="wait">

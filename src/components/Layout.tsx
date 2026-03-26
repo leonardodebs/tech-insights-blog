@@ -6,11 +6,13 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function Layout({ 
   children, 
   onSelectCategory, 
-  selectedCategory 
+  selectedCategory,
+  onReset,
 }: { 
   children: React.ReactNode;
   onSelectCategory: (category: string | null) => void;
   selectedCategory: string | null;
+  onReset: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -22,7 +24,7 @@ export default function Layout({
       <header className="border-b border-zinc-200 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <button 
-            onClick={() => onSelectCategory(null)}
+            onClick={onReset}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
