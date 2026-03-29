@@ -173,7 +173,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
               </div>
               <div>
                 <h2 className="font-bold text-white">Gerar Novo Post</h2>
-                <p className="text-xs text-zinc-500">Via GitHub Actions + Groq AI</p>
+                <p className="text-xs text-zinc-500">Via GitHub Actions + Gemini AI</p>
               </div>
             </div>
 

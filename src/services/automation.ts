@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+import { GoogleGenAI } from "@google/genai";
 import Parser from "rss-parser";
 import fs from "fs";
 import path from "path";
@@ -50,18 +50,16 @@ function validatePost(content: string | undefined): boolean {
 export async function runAutomation(targetCategory?: string | null) {
   console.log("🚀 Iniciando Motor Master Architect V5.2 (Produção)...");
 
-  const apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
-  if (!apiKey) throw new Error("Chave GROQ_API_KEY não configurada.");
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  if (!apiKey) throw new Error("Chave GEMINI_API_KEY não configurada.");
 
-  const groq = new Groq({ apiKey });
-  const model = "llama-3.3-70b-versatile";
+  const ai = new GoogleGenAI({ apiKey });
+  const model = "gemini-2.5-flash";
 
   let existingPosts: Post[] = [];
   if (fs.existsSync(POSTS_PATH)) {
     existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
   }
-
-  const recentThemes = existingPosts.slice(0, 5).map(p => p.title).join(", ");
 
   const newsItems: string[] = [];
   for (const url of FEEDS) {
@@ -81,15 +79,15 @@ export async function runAutomation(targetCategory?: string | null) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando Análise Técnica Master Architect...`);
 
-    const contentRes = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
+    const contentRes = await ai.models.generateContent({
+      model,
+      contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
+      config: {
+        systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
 Seu papel é transformar notícias em análise técnica profunda, insight prático e opinião baseada em experiência real.
 
 ⚠️ REGRAS CRÍTICAS (A NÃO OBSERVÂNCIA RESULTARÁ EM REJEIÇÃO):
-- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucinário", "inovador", "escalável", "preciso", "líder de mercado".
+- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "preciso", "líder de mercado".
 - MÍNIMO de 650 palavras. Seja denso e detalhista.
 - NÃO listar notícias. Integre tudo em uma narrativa técnica direta.
 - FOCO: Explique o "Como" e os "Trade-offs" de arquitetura.
@@ -108,20 +106,13 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
 ## Conclusão direta
 ## Fontes (Lista no formato: [Fonte: Nome] Título)
 
-⚠️ FORMATO JSON EXCLUSIVO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.`
-        },
-        {
-          role: "user",
-          content: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`
-        }
-      ],
-      model,
-      response_format: { type: "json_object" },
-      temperature: 0.5,
-      max_tokens: 4096
+⚠️ FORMATO JSON EXCLUSIVO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.`,
+        responseMimeType: "application/json",
+        temperature: 0.5
+      }
     });
 
-    let rawContent = contentRes.choices[0]?.message?.content || "{}";
+    let rawContent = contentRes.text || "{}";
     rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
 
     const result = JSON.parse(rawContent);
