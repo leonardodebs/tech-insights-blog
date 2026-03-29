@@ -42,7 +42,7 @@ function validatePost(content: string | undefined): boolean {
 
   const hasTechTerm = techTerms.some(term => lower.includes(term));
   const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
-  const hasMinLength = content.length >= 3000; // Mínimo de 600+ palavras
+  const hasMinLength = content.length >= 1500; // Mínimo de ~350-400 palavras (mais direto)
 
   return hasTechTerm && !hasForbiddenTerm && hasMinLength;
 }
@@ -84,11 +84,11 @@ export async function runAutomation(targetCategory?: string | null) {
       contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
       config: {
         systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
-Seu papel é transformar notícias em análise técnica profunda, insight prático e opinião baseada em experiência real.
+Seu papel é transformar notícias em uma análise técnica concisa, com insights práticos e direto ao ponto.
 
 ⚠️ REGRAS CRÍTICAS (A NÃO OBSERVÂNCIA RESULTARÁ EM REJEIÇÃO):
 - PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "preciso", "líder de mercado".
-- MÍNIMO de 650 palavras. Seja denso e detalhista.
+- MÍNIMO de 350 palavras. Seja conciso, use bullet points sempre que possível para facilitar a leitura.
 - NÃO listar notícias. Integre tudo em uma narrativa técnica direta.
 - FOCO: Explique o "Como" e os "Trade-offs" de arquitetura.
 
@@ -98,11 +98,9 @@ Seu papel é transformar notícias em análise técnica profunda, insight práti
 # [TÍTULO IMPACTANTE]
 > Resumo (2-3 linhas diretas)
 
-## O que está acontecendo de verdade
-## Onde está o risco (ou oportunidade)
-## Onde a maioria erra
+## O que está acontecendo
+## Insights e Riscos (Use bullet points)
 ## O que muda na prática
-## Trade-offs
 ## Conclusão direta
 ## Fontes (Lista no formato: [Fonte: Nome] Título)
 
