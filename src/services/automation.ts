@@ -40,11 +40,14 @@ function validatePost(content: string | undefined): boolean {
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
   const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "escalável", "preciso", "líder de mercado"];
 
+  const conclusionMatch = content.match(/## Conclusão direta([\s\S]*?)(## |$)/);
+  const hasCTA = conclusionMatch ? conclusionMatch[1].includes("?") : false;
+
   const hasTechTerm = techTerms.some(term => lower.includes(term));
   const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
   const hasMinLength = content.length >= 1500; // Mínimo de ~350-400 palavras (mais direto)
 
-  return hasTechTerm && !hasForbiddenTerm && hasMinLength;
+  return hasTechTerm && !hasForbiddenTerm && hasMinLength && hasCTA;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
@@ -71,7 +74,7 @@ export async function runAutomation(targetCategory?: string | null) {
     } catch (e) { /* skip */ }
   }
 
-  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 12).join("\n");
+  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 8).join("\n");
 
   const maxAttempts = 3;
   let lastResult = null;
@@ -83,28 +86,51 @@ export async function runAutomation(targetCategory?: string | null) {
       model,
       contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
       config: {
-        systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes. 
-Seu papel é transformar notícias em uma análise técnica concisa, com insights práticos e direto ao ponto.
+        thinkingConfig: {
+          thinkingBudget: 8000
+        },
+        systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
 
-⚠️ REGRAS CRÍTICAS (A NÃO OBSERVÂNCIA RESULTARÁ EM REJEIÇÃO):
-- PROIBIDO conteúdo genérico. NUNCA use: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "preciso", "líder de mercado".
-- MÍNIMO de 350 palavras. Seja conciso, use bullet points sempre que possível para facilitar a leitura.
-- NÃO listar notícias. Integre tudo em uma narrativa técnica direta.
-- FOCO: Explique o "Como" e os "Trade-offs" de arquitetura.
+━━━ ETAPA 1 — TRIAGEM (execute antes de escrever qualquer palavra) ━━━
+1. Leia todas as notícias fornecidas.
+2. Identifique UM tema central que conecta a maioria delas. Defina internamente: "Tese: ___"
+3. Descarte qualquer notícia que não contribua diretamente para essa tese — mesmo que seja tecnicamente interessante.
+4. Se restarem menos de 2 notícias relevantes, escolha o tema da notícia mais forte e descarte todas as outras.
 
-- CATEGORIA OBRIGATÓRIA: Escolha EXCLUSIVAMENTE uma das seguintes categorias para o campo 'category': [Cloud, Linux, AI, Security, DevOps, Startups]. É PROIBIDO criar categorias novas ou mistas.
+━━━ ETAPA 2 — GERAÇÃO ━━━
+Escreva o post com base APENAS nas notícias que passaram na triagem.
 
-📌 ESTRUTURA OBRIGATÓRIA (DENTRO DO CAMPO 'CONTENT'):
-# [TÍTULO IMPACTANTE]
-> Resumo (2-3 linhas diretas)
+⚠️ REGRAS CRÍTICAS (descumprimento = rejeição automática):
+- PROIBIDO: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "líder de mercado"
+- MÍNIMO de 400 palavras
+- NÃO liste notícias — integre em narrativa técnica com tese clara
+- FOCO: explique o "Como" e os "Trade-offs" reais de arquitetura
+- O título deve refletir a tese, não o tema genérico
+
+━━━ ESTRUTURA OBRIGATÓRIA (dentro do campo 'content') ━━━
+# [TÍTULO QUE REFLETE A TESE]
+> Resumo (2-3 linhas com a tese central explícita)
 
 ## O que está acontecendo
-## Insights e Riscos (Use bullet points)
-## O que muda na prática
-## Conclusão direta
-## Fontes (Lista no formato: [Fonte: Nome] Título)
+(contexto direto, sem floreios)
 
-⚠️ FORMATO JSON EXCLUSIVO: Retorne APENAS um objeto JSON com os campos: 'title', 'excerpt', 'category', 'tags' e 'content'.`,
+## Insights e Riscos
+(bullet points com impacto concreto e trade-offs reais)
+
+## O que muda na prática
+(segmentado por perfil conforme relevância: Engenheiro de Segurança, Arquiteto, DevOps/MLOps)
+
+## Conclusão direta
+(1 parágrafo de síntese + 1 pergunta provocativa para o leitor, ex: "Sua empresa já tem uma política de identidade para agentes não-humanos?" ou "Como você está planejando a agilidade criptográfica para 2029?")
+
+## Fontes
+(formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)
+
+━━━ CATEGORIA ━━━
+Escolha EXCLUSIVAMENTE uma: Cloud | Linux | AI | Security | DevOps | Startups
+
+━━━ SAÍDA ━━━
+Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
         responseMimeType: "application/json",
         temperature: 0.5
       }
