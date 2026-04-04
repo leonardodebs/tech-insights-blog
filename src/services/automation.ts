@@ -139,14 +139,23 @@ Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
     let rawContent = contentRes.text || "{}";
     rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
 
-    const result = JSON.parse(rawContent);
+    let result: any = null;
+    try {
+      result = JSON.parse(rawContent);
+    } catch (e) {
+      console.warn(`⚠️ Erro ao fazer parse do JSON na tentativa ${attempt}. Continuando...`);
+      if (attempt === maxAttempts) {
+        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar JSON válido após 3 tentativas.");
+      }
+      continue;
+    }
 
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
     if (result && result.content && validatePost(result.content)) {
       lastResult = result;
       break; // Sucesso!
     } else {
-      console.warn(`⚠️ Tentativa ${attempt} reprovada. O artigo era muito curto ou continha clichês.`);
+      console.warn(`⚠️ Tentativa ${attempt} reprovada. O artigo falhou na validação de qualidade.`);
       if (attempt === maxAttempts) {
         const errorMsg = "❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após 3 tentativas.";
         console.error(errorMsg);
