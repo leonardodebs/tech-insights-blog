@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs/promises";
 import helmet from "helmet";
 import compression from "compression";
+import he from "he";
 
 async function startServer() {
   const app = express();
@@ -87,14 +88,18 @@ async function startServer() {
         let indexPath = path.resolve(process.cwd(), process.env.NODE_ENV === "production" ? "dist/index.html" : "index.html");
         let html = await fs.readFile(indexPath, "utf-8");
 
+        // Sanitize data for injection
+        const safeTitle = he.encode(post.title);
+        const safeExcerpt = he.encode(post.excerpt);
+
         // Inject meta tags
-        html = html.replace(/<title>.*?<\/title>/, `<title>${post.title} | Tech Insights</title>`);
-        html = html.replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${post.excerpt}" />`);
-        html = html.replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${post.title}" />`);
-        html = html.replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${post.excerpt}" />`);
+        html = html.replace(/<title>.*?<\/title>/, `<title>${safeTitle} | Tech Insights</title>`);
+        html = html.replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${safeExcerpt}" />`);
+        html = html.replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${safeTitle}" />`);
+        html = html.replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${safeExcerpt}" />`);
         html = html.replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />`);
-        html = html.replace(/<meta property="twitter:title" content=".*?" \/>/, `<meta property="twitter:title" content="${post.title}" />`);
-        html = html.replace(/<meta property="twitter:description" content=".*?" \/>/, `<meta property="twitter:description" content="${post.excerpt}" />`);
+        html = html.replace(/<meta property="twitter:title" content=".*?" \/>/, `<meta property="twitter:title" content="${safeTitle}" />`);
+        html = html.replace(/<meta property="twitter:description" content=".*?" \/>/, `<meta property="twitter:description" content="${safeExcerpt}" />`);
         html = html.replace(/<meta property="twitter:url" content=".*?" \/>/, `<meta property="twitter:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />`);
         
         // Add a specific image for the post if possible, or use a seeded one

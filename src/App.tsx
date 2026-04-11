@@ -5,6 +5,7 @@ import Toast, { ToastType } from './components/Toast';
 import { Post } from './types';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import DOMPurify from 'dompurify';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Search, Share2, Check, Twitter, Linkedin } from 'lucide-react';
 
@@ -244,7 +245,9 @@ export default function App() {
             </div>
 
             <div className="markdown-body">
-              <Markdown rehypePlugins={[rehypeRaw]}>{selectedPost.content}</Markdown>
+              <Markdown rehypePlugins={[rehypeRaw]}>
+                {DOMPurify.sanitize(selectedPost.content)}
+              </Markdown>
             </div>
           </motion.div>
         )}
