@@ -82,14 +82,16 @@ export async function runAutomation(targetCategory?: string | null) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando Análise Técnica Master Architect...`);
 
-    const contentRes = await ai.models.generateContent({
-      model,
-      contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
-      config: {
-        thinkingConfig: {
-          thinkingBudget: 8000
-        },
-        systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
+    let contentRes;
+    try {
+      contentRes = await ai.models.generateContent({
+        model,
+        contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
+        config: {
+          thinkingConfig: {
+            thinkingBudget: 8000
+          },
+          systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
 
 ━━━ ETAPA 1 — TRIAGEM (execute antes de escrever qualquer palavra) ━━━
 1. Leia todas as notícias fornecidas.
@@ -131,10 +133,18 @@ Escolha EXCLUSIVAMENTE uma: Cloud | Linux | AI | Security | DevOps | Startups
 
 ━━━ SAÍDA ━━━
 Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
-        responseMimeType: "application/json",
-        temperature: 0.5
+          responseMimeType: "application/json",
+          temperature: 0.5
+        }
+      });
+    } catch (apiError: any) {
+      console.warn(`⚠️ Erro na API do Gemini (tentativa ${attempt}):`, apiError.message || apiError);
+      if (attempt === maxAttempts) {
+        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Gemini após 3 tentativas.");
       }
-    });
+      await new Promise(resolve => setTimeout(resolve, 5000 * attempt));
+      continue;
+    }
 
     let rawContent = contentRes.text || "{}";
     rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
