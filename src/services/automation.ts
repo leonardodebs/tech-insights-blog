@@ -34,7 +34,7 @@ const FEEDS = [
   "https://tecnoblog.net/feed/"
 ];
 
-function validatePost(content: string | undefined): boolean {
+export function validatePost(content: string | undefined): boolean {
   if (!content) return false;
   const lower = content.toLowerCase();
   const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
@@ -48,6 +48,20 @@ function validatePost(content: string | undefined): boolean {
   const hasMinLength = content.length >= 1500;
 
   return hasTechTerm && !hasForbiddenTerm && hasMinLength && hasCTA;
+}
+
+export function mapCategory(raw: string): string {
+  const validCategories = ["Cloud", "Linux", "AI", "Security", "DevOps", "Startups"];
+  if (validCategories.includes(raw)) return raw;
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("segur") || lower.includes("cyber") || lower.includes("security")) return "Security";
+  if (lower.includes("inteligenc") || lower.includes("ai") || lower.includes("ia")) return "AI";
+  if (lower.includes("nuve") || lower.includes("cloud")) return "Cloud";
+  if (lower.includes("start") || lower.includes("negoci")) return "Startups";
+  if (lower.includes("dev") || lower.includes("ops")) return "DevOps";
+  if (lower.includes("lin") || lower.includes("bash")) return "Linux";
+  return "Cloud";
 }
 
 function is503Error(err: any): boolean {
@@ -114,6 +128,11 @@ export async function runAutomation(targetCategory?: string | null) {
     existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
   }
 
+  // Deduplication: collect titles and tags from last 7 posts
+  const recentPostsSummary = existingPosts.slice(0, 7).map(p =>
+    `- "${p.title}" [${p.category}] tags: ${p.tags.join(", ")}`
+  ).join("\n");
+
   const newsItems: string[] = [];
   for (const url of FEEDS) {
     try {
@@ -125,6 +144,12 @@ export async function runAutomation(targetCategory?: string | null) {
   }
 
   const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 8).join("\n");
+
+  const deduplicationHint = recentPostsSummary
+    ? `\n\n⚠️ TÓPICOS RECENTES JÁ PUBLICADOS (EVITE REPETIR TESE OU ÂNGULO SIMILAR):\n${recentPostsSummary}\n`
+    : "";
+
+  const prompt = `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}${deduplicationHint}`;
 
   const maxAttempts = 5;
   let lastResult = null;
@@ -138,10 +163,10 @@ export async function runAutomation(targetCategory?: string | null) {
     try {
       contentRes = await ai.models.generateContent({
         model,
-        contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
+        contents: prompt,
         config: {
           thinkingConfig: {
-            thinkingBudget: 8000
+            thinkingBudget: 2500
           },
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: "application/json",
@@ -197,20 +222,7 @@ export async function runAutomation(targetCategory?: string | null) {
   }
 
   const result = lastResult!;
-
-  const validCategories = ["Cloud", "Linux", "AI", "Security", "DevOps", "Startups"];
-  let finalCategory = result.category || "Cloud";
-
-  if (!validCategories.includes(finalCategory)) {
-    const lowerCat = finalCategory.toLowerCase();
-    if (lowerCat.includes("segur") || lowerCat.includes("cyber") || lowerCat.includes("security")) finalCategory = "Security";
-    else if (lowerCat.includes("inteligenc") || lowerCat.includes("ai") || lowerCat.includes("ia")) finalCategory = "AI";
-    else if (lowerCat.includes("nuve") || lowerCat.includes("cloud")) finalCategory = "Cloud";
-    else if (lowerCat.includes("start") || lowerCat.includes("negoci")) finalCategory = "Startups";
-    else if (lowerCat.includes("dev") || lowerCat.includes("ops")) finalCategory = "DevOps";
-    else if (lowerCat.includes("lin") || lowerCat.includes("bash")) finalCategory = "Linux";
-    else finalCategory = "Cloud";
-  }
+  const finalCategory = mapCategory(result.category || "Cloud");
 
   const newPost: Post = {
     id: `post-${Date.now()}`,
