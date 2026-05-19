@@ -45,53 +45,17 @@ function validatePost(content: string | undefined): boolean {
 
   const hasTechTerm = techTerms.some(term => lower.includes(term));
   const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
-  const hasMinLength = content.length >= 1500; // Mínimo de ~350-400 palavras (mais direto)
+  const hasMinLength = content.length >= 1500;
 
   return hasTechTerm && !hasForbiddenTerm && hasMinLength && hasCTA;
 }
 
-export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando Motor Master Architect V5.2 (Produção)...");
+function is503Error(err: any): boolean {
+  const msg = err?.message || err?.toString() || "";
+  return msg.includes('"code":503') || msg.includes("503") || msg.includes("UNAVAILABLE");
+}
 
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "");
-  if (!apiKey) throw new Error("Chave GEMINI_API_KEY não configurada.");
-
-  const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-2.5-flash";
-
-  let existingPosts: Post[] = [];
-  if (fs.existsSync(POSTS_PATH)) {
-    existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
-  }
-
-  const newsItems: string[] = [];
-  for (const url of FEEDS) {
-    try {
-      const feed = await parser.parseURL(url);
-      feed.items.slice(0, 5).forEach(item => {
-        newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
-      });
-    } catch (e) { /* skip */ }
-  }
-
-  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 8).join("\n");
-
-  const maxAttempts = 3;
-  let lastResult = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando Análise Técnica Master Architect...`);
-
-    let contentRes;
-    try {
-      contentRes = await ai.models.generateContent({
-        model,
-        contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
-        config: {
-          thinkingConfig: {
-            thinkingBudget: 8000
-          },
-          systemInstruction: `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
+const SYSTEM_INSTRUCTION = `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
 
 ━━━ ETAPA 1 — TRIAGEM (execute antes de escrever qualquer palavra) ━━━
 1. Leia todas as notícias fornecidas.
@@ -132,17 +96,77 @@ Escreva o post com base APENAS nas notícias que passaram na triagem.
 Escolha EXCLUSIVAMENTE uma: Cloud | Linux | AI | Security | DevOps | Startups
 
 ━━━ SAÍDA ━━━
-Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
+Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`;
+
+export async function runAutomation(targetCategory?: string | null) {
+  console.log("🚀 Iniciando Motor Master Architect V5.2 (Produção)...");
+
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  if (!apiKey) throw new Error("Chave GEMINI_API_KEY não configurada.");
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Primary model with fallback for high-demand 503 errors
+  const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+
+  let existingPosts: Post[] = [];
+  if (fs.existsSync(POSTS_PATH)) {
+    existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
+  }
+
+  const newsItems: string[] = [];
+  for (const url of FEEDS) {
+    try {
+      const feed = await parser.parseURL(url);
+      feed.items.slice(0, 5).forEach(item => {
+        newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
+      });
+    } catch (e) { /* skip */ }
+  }
+
+  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 8).join("\n");
+
+  const maxAttempts = 5;
+  let lastResult = null;
+  let currentModelIndex = 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const model = MODELS[currentModelIndex];
+    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${model}]: Gerando Análise Técnica Master Architect...`);
+
+    let contentRes;
+    try {
+      contentRes = await ai.models.generateContent({
+        model,
+        contents: `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}`,
+        config: {
+          thinkingConfig: {
+            thinkingBudget: 8000
+          },
+          systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: "application/json",
           temperature: 0.5
         }
       });
     } catch (apiError: any) {
+      const errorIs503 = is503Error(apiError);
       console.warn(`⚠️ Erro na API do Gemini (tentativa ${attempt}):`, apiError.message || apiError);
+
       if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Gemini após 3 tentativas.");
+        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Gemini após todas as tentativas.");
       }
-      await new Promise(resolve => setTimeout(resolve, 5000 * attempt));
+
+      // On 503, switch to fallback model after 2 consecutive failures
+      if (errorIs503 && attempt >= 2 && currentModelIndex < MODELS.length - 1) {
+        currentModelIndex++;
+        console.log(`🔄 Alternando para modelo fallback: ${MODELS[currentModelIndex]}`);
+      }
+
+      // Exponential backoff: 30s base for 503 (overload), 5s base for other errors
+      const baseDelay = errorIs503 ? 30000 : 5000;
+      const delay = baseDelay * attempt;
+      console.log(`⏳ Aguardando ${delay / 1000}s antes da próxima tentativa...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
       continue;
     }
 
@@ -155,7 +179,7 @@ Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
     } catch (e) {
       console.warn(`⚠️ Erro ao fazer parse do JSON na tentativa ${attempt}. Continuando...`);
       if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar JSON válido após 3 tentativas.");
+        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar JSON válido após todas as tentativas.");
       }
       continue;
     }
@@ -163,24 +187,20 @@ Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
     if (result && result.content && validatePost(result.content)) {
       lastResult = result;
-      break; // Sucesso!
+      break;
     } else {
       console.warn(`⚠️ Tentativa ${attempt} reprovada. O artigo falhou na validação de qualidade.`);
       if (attempt === maxAttempts) {
-        const errorMsg = "❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após 3 tentativas.";
-        console.error(errorMsg);
-        throw new Error(errorMsg);
+        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após todas as tentativas.");
       }
     }
   }
 
   const result = lastResult!;
-  
-  // Limpeza e Normalização de Categoria (Garante que o post apareça no menu)
+
   const validCategories = ["Cloud", "Linux", "AI", "Security", "DevOps", "Startups"];
   let finalCategory = result.category || "Cloud";
-  
-  // Se a IA inventar nomes em PT ou errados, mapeamos para os oficiais
+
   if (!validCategories.includes(finalCategory)) {
     const lowerCat = finalCategory.toLowerCase();
     if (lowerCat.includes("segur") || lowerCat.includes("cyber") || lowerCat.includes("security")) finalCategory = "Security";
@@ -189,7 +209,7 @@ Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`,
     else if (lowerCat.includes("start") || lowerCat.includes("negoci")) finalCategory = "Startups";
     else if (lowerCat.includes("dev") || lowerCat.includes("ops")) finalCategory = "DevOps";
     else if (lowerCat.includes("lin") || lowerCat.includes("bash")) finalCategory = "Linux";
-    else finalCategory = "Cloud"; // Fallback final
+    else finalCategory = "Cloud";
   }
 
   const newPost: Post = {
