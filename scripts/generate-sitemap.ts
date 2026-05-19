@@ -1,35 +1,46 @@
+/**
+ * Gera dist/sitemap.xml com todos os posts do posts.json.
+ * Executado após `vite build` no script "build" do package.json.
+ */
 import fs from "fs";
 import path from "path";
 
-const SITE_URL = "https://leonardodebs.github.io/tech-insights-blog";
+const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
+const DIST_DIR = path.resolve(process.cwd(), "dist");
 const POSTS_PATH = path.resolve(process.cwd(), "src/data/posts.json");
-const DIST_PATH = path.resolve(process.cwd(), "dist");
 
-const posts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8"));
+interface Post {
+  id: string;
+  date: string;
+}
 
-const staticPages = [
-  { url: "/", priority: "1.0", changefreq: "daily" },
-  { url: "/admin", priority: "0.1", changefreq: "never" },
+const posts: Post[] = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8"));
+
+const staticUrls = [
+  { loc: `${BASE_URL}/`, priority: "1.0", changefreq: "daily", lastmod: "" },
 ];
 
-const postEntries = posts.map((post: any) => ({
-  url: `/posts/${post.id}/`,
-  lastmod: post.date.split("T")[0],
+const postUrls = posts.map((p) => ({
+  loc: `${BASE_URL}/posts/${p.id}/`,
+  lastmod: new Date(p.date).toISOString().split("T")[0],
   priority: "0.8",
   changefreq: "weekly",
 }));
 
-const allEntries = [...staticPages, ...postEntries];
+const allUrls = [...staticUrls, ...postUrls];
 
-const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${allEntries.map(e => `  <url>
-    <loc>${SITE_URL}${e.url}</loc>
-    ${e.lastmod ? `<lastmod>${e.lastmod}</lastmod>` : ""}
-    <changefreq>${e.changefreq}</changefreq>
-    <priority>${e.priority}</priority>
-  </url>`).join("\n")}
+${allUrls
+  .map(
+    (u) => `  <url>
+    <loc>${u.loc}</loc>${u.lastmod ? `\n    <lastmod>${u.lastmod}</lastmod>` : ""}
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`
+  )
+  .join("\n")}
 </urlset>`;
 
-fs.writeFileSync(path.join(DIST_PATH, "sitemap.xml"), sitemap);
-console.log(`✅ sitemap.xml gerado com ${allEntries.length} URLs.`);
+fs.writeFileSync(path.join(DIST_DIR, "sitemap.xml"), xml, "utf-8");
+console.log(`✅ sitemap.xml gerado com ${allUrls.length} URLs.`);
