@@ -38,6 +38,8 @@ jobs:
         continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
 
       - name: Notify failure via GitHub Issue

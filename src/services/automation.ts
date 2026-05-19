@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
 import Parser from "rss-parser";
 import fs from "fs";
 import path from "path";
@@ -236,6 +237,28 @@ export async function runAutomation(targetCategory?: string | null) {
 
   existingPosts.unshift(newPost);
   fs.writeFileSync(POSTS_PATH, JSON.stringify(existingPosts, null, 2));
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && supabaseKey) {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { error } = await supabase.from("posts").upsert({
+      id: newPost.id,
+      title: newPost.title,
+      date: newPost.date,
+      excerpt: newPost.excerpt,
+      content: newPost.content,
+      tags: newPost.tags,
+      category: newPost.category,
+    }, { onConflict: "id" });
+    if (error) {
+      console.warn(`⚠️ Post salvo em posts.json mas falhou no Supabase: ${error.message}`);
+    } else {
+      console.log(`☁️ Post sincronizado com Supabase.`);
+    }
+  } else {
+    console.warn("⚠️ VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não definidos — post salvo apenas em posts.json.");
+  }
 
   console.log(`✅ Artigo gerado com sucesso: ${newPost.title}`);
   return newPost;

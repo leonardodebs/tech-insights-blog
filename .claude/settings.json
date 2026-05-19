@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content *)",
+      "PowerShell(cd D:\\PROJETOS\\tech-insights-blog*)",
+      "PowerShell(gh auth status*)",
+      "mcp__060bb2e1-7412-4f5b-b662-0b6bef921b88__execute_sql",
+      "mcp__060bb2e1-7412-4f5b-b662-0b6bef921b88__list_tables",
+      "mcp__060bb2e1-7412-4f5b-b662-0b6bef921b88__list_projects",
+      "mcp__060bb2e1-7412-4f5b-b662-0b6bef921b88__get_project",
+      "mcp__060bb2e1-7412-4f5b-b662-0b6bef921b88__list_migrations",
+      "mcp__ccd_session__mark_chapter",
+      "mcp__ccd_session__spawn_task"
+    ],
+    "deny": []
+  }
+}
