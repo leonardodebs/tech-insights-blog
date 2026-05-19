@@ -30,11 +30,13 @@ jobs:
           fetch-depth: 0
 
       - name: Perform Action
+        env:
+          ACTION: ${{ github.event.inputs.action }}
+          POST_ID: ${{ github.event.inputs.postId }}
         run: |
-          if [ "${{ github.event.inputs.action }}" == "delete" ]; then
-            echo "Deleting post with ID: ${{ github.event.inputs.postId }}"
-            # Use jq to remove the post with the matching id
-            jq 'del(.[] | select(.id == "${{ github.event.inputs.postId }}"))' src/data/posts.json > temp.json
+          if [ "$ACTION" == "delete" ]; then
+            echo "Deleting post with ID: $POST_ID"
+            jq --arg id "$POST_ID" 'del(.[] | select(.id == $id))' src/data/posts.json > temp.json
             mv temp.json src/data/posts.json
           fi
 
