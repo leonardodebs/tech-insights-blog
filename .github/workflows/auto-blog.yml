@@ -33,9 +33,15 @@ jobs:
         run: npm install
 
       - name: Generate AI Post
+        id: generate
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
+
+      - name: Warn if generation failed
+        if: steps.generate.outcome == 'failure'
+        run: echo "⚠️ Geração de post falhou (API indisponível). O site será implantado sem novo post."
 
       - name: Build Site
         env:
@@ -44,6 +50,7 @@ jobs:
         run: npm run build
 
       - name: Commit and Push Data
+        if: steps.generate.outcome == 'success'
         run: |
           git config --global user.name "AI Bot"
           git config --global user.email "bot@github.com"
