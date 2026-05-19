@@ -9,6 +9,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: "pages"
@@ -39,9 +40,20 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
 
-      - name: Warn if generation failed
+      - name: Notify failure via GitHub Issue
         if: steps.generate.outcome == 'failure'
-        run: echo "⚠️ Geração de post falhou (API indisponível). O site será implantado sem novo post."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TODAY=$(date '+%Y-%m-%d')
+          EXISTING=$(gh issue list --label "ci-failure" --search "Falha na geração $TODAY" --json number --jq 'length')
+          if [ "$EXISTING" -eq "0" ]; then
+            gh issue create \
+              --title "⚠️ Falha na geração de post: $TODAY" \
+              --body "A geração automática de post falhou em $TODAY.\n\nVerifique os [logs do workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) para detalhes.\n\nPossíveis causas:\n- API do Gemini indisponível (503)\n- Chave GEMINI_API_KEY expirada\n- Validação de qualidade não aprovada após todas as tentativas" \
+              --label "ci-failure"
+          fi
+          echo "⚠️ Geração de post falhou. Issue criada no GitHub."
 
       - name: Build Site
         env:
