@@ -7,41 +7,118 @@ import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import DOMPurify from 'dompurify';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Search, Share2, Check, Twitter, Linkedin } from 'lucide-react';
+import { ArrowLeft, Search, Share2, Check, Twitter, Linkedin, Loader2 } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
-import postsData from './data/posts.json';
+const PAGE_SIZE = 12;
+
+declare global {
+  interface Window { __INITIAL_POST_ID__?: string; }
+}
 
 export default function App() {
-  const [posts] = useState<Post[]>(postsData);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const postId = urlParams.get('post');
-    if (postId) {
-      const post = postsData.find((p: Post) => p.id === postId);
-      if (post) setSelectedPost(post);
+  const fetchPosts = useCallback(async (pageIndex: number, category: string | null) => {
+    const from = pageIndex * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('posts')
+      .select('id, title, date, excerpt, tags, category')
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (category) query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Erro ao buscar posts:', error.message);
+      return [];
     }
+    return data as Post[];
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    setLoading(true);
+    fetchPosts(0, selectedCategory).then(data => {
+      setPosts(data);
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(0);
+      setLoading(false);
+    });
+  }, [selectedCategory, fetchPosts]);
+
+  // Open post from SSG path or query param
+  useEffect(() => {
+    const initialId = window.__INITIAL_POST_ID__;
+    const queryId = new URLSearchParams(window.location.search).get('post');
+    const postId = initialId || queryId;
+    if (!postId) return;
+
+    supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .single()
+      .then(({ data }) => {
+        if (data) setSelectedPost(data as Post);
+      });
   }, []);
 
   // Sync URL with selected post
   useEffect(() => {
-    const url = new URL(window.location.href);
     if (selectedPost) {
-      url.searchParams.set('post', selectedPost.id);
+      window.history.pushState({}, '', `/posts/${selectedPost.id}/`);
     } else {
-      url.searchParams.delete('post');
+      window.history.pushState({}, '', '/');
     }
-    window.history.pushState({}, '', url.toString());
   }, [selectedPost]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const data = await fetchPosts(nextPage, selectedCategory);
+    setPosts(prev => [...prev, ...data]);
+    setHasMore(data.length === PAGE_SIZE);
+    setPage(nextPage);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, page, selectedCategory, fetchPosts]);
+
+  const openPost = useCallback(async (post: Post) => {
+    if (post.content) {
+      setSelectedPost(post);
+      return;
+    }
+    // Full content lazy-loaded on open
+    const { data } = await supabase.from('posts').select('*').eq('id', post.id).single();
+    if (data) setSelectedPost(data as Post);
+  }, []);
+
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery) return posts;
+    const query = searchQuery.toLowerCase();
+    return posts.filter(p =>
+      p.title.toLowerCase().includes(query) ||
+      p.excerpt.toLowerCase().includes(query) ||
+      p.tags.some(t => t.toLowerCase().includes(query))
+    );
+  }, [posts, searchQuery]);
 
   const handleShare = async () => {
     if (!selectedPost) return;
-    const url = `${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`;
+    const url = `${window.location.origin}/posts/${selectedPost.id}/`;
     try {
       await navigator.clipboard.writeText(url);
       setIsCopied(true);
@@ -54,32 +131,16 @@ export default function App() {
 
   const shareOnTwitter = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`);
+    const url = encodeURIComponent(`${window.location.origin}/posts/${selectedPost.id}/`);
     const text = encodeURIComponent(`Confira este artigo: ${selectedPost.title}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
   };
 
   const shareOnLinkedIn = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?post=${selectedPost.id}`);
+    const url = encodeURIComponent(`${window.location.origin}/posts/${selectedPost.id}/`);
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
   };
-
-  const filteredPosts = useMemo(() => {
-    let result = posts;
-    if (selectedCategory) {
-      result = result.filter(p => p.category.toLowerCase() === selectedCategory.toLowerCase());
-    }
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.title.toLowerCase().includes(query) ||
-        p.excerpt.toLowerCase().includes(query) ||
-        p.tags.some(t => t.toLowerCase().includes(query))
-      );
-    }
-    return result;
-  }, [posts, selectedCategory, searchQuery]);
 
   const closeToast = useCallback(() => setToast(null), []);
   const handleReset = useCallback(() => {
@@ -136,16 +197,34 @@ export default function App() {
               </div>
             </div>
 
-            {filteredPosts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredPosts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onClick={() => setSelectedPost(post)}
-                  />
-                ))}
+            {loading ? (
+              <div className="flex justify-center py-24">
+                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
               </div>
+            ) : filteredPosts.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredPosts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      onClick={() => openPost(post)}
+                    />
+                  ))}
+                </div>
+                {hasMore && !searchQuery && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="flex items-center gap-2 px-6 py-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:border-emerald-500 transition-all disabled:opacity-50"
+                    >
+                      {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -159,13 +238,10 @@ export default function App() {
                 <p className="text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto mb-8">
                   {searchQuery
                     ? `Não encontramos resultados para "${searchQuery}". Tente outros termos.`
-                    : 'Ainda não há artigos nesta categoria. Novos posts são gerados automaticamente toda segunda-feira.'}
+                    : 'Ainda não há artigos nesta categoria.'}
                 </p>
                 <button
-                  onClick={() => {
-                    setSelectedCategory(null);
-                    setSearchQuery('');
-                  }}
+                  onClick={() => { setSelectedCategory(null); setSearchQuery(''); }}
                   className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-emerald-500 transition-colors"
                 >
                   Ver todos os posts
@@ -246,7 +322,7 @@ export default function App() {
 
             <div className="markdown-body">
               <Markdown rehypePlugins={[rehypeRaw]}>
-                {DOMPurify.sanitize(selectedPost.content)}
+                {DOMPurify.sanitize(selectedPost.content || '')}
               </Markdown>
             </div>
           </motion.div>
