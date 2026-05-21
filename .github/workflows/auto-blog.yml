@@ -37,7 +37,7 @@ jobs:
         id: generate
         continue-on-error: true
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
@@ -52,7 +52,7 @@ jobs:
           if [ "$EXISTING" -eq "0" ]; then
             gh issue create \
               --title "⚠️ Falha na geração de post: $TODAY" \
-              --body "A geração automática de post falhou em $TODAY.\n\nVerifique os [logs do workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) para detalhes.\n\nPossíveis causas:\n- API do Gemini indisponível (503)\n- Chave GEMINI_API_KEY expirada\n- Validação de qualidade não aprovada após todas as tentativas" \
+              --body "A geração automática de post falhou em $TODAY.\n\nVerifique os [logs do workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) para detalhes.\n\nPossíveis causas:\n- API do Claude sobrecarregada (529)\n- Chave ANTHROPIC_API_KEY expirada ou inválida\n- Validação de qualidade não aprovada após todas as tentativas" \
               --label "ci-failure"
           fi
           echo "⚠️ Geração de post falhou. Issue criada no GitHub."

@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import Parser from "rss-parser";
 import fs from "fs";
@@ -65,9 +65,16 @@ export function mapCategory(raw: string): string {
   return "Cloud";
 }
 
-function is503Error(err: any): boolean {
+function isOverloadedError(err: any): boolean {
   const msg = err?.message || err?.toString() || "";
-  return msg.includes('"code":503') || msg.includes("503") || msg.includes("UNAVAILABLE");
+  const status = err?.status;
+  return (
+    status === 529 ||
+    msg.includes("529") ||
+    msg.includes("overloaded") ||
+    msg.includes("UNAVAILABLE") ||
+    msg.includes("overloaded_error")
+  );
 }
 
 const SYSTEM_INSTRUCTION = `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
@@ -111,18 +118,16 @@ Escreva o post com base APENAS nas notícias que passaram na triagem.
 Escolha EXCLUSIVAMENTE uma: Cloud | Linux | AI | Security | DevOps | Startups
 
 ━━━ SAÍDA ━━━
-Retorne APENAS JSON com os campos: title, excerpt, category, tags, content`;
+Retorne APENAS JSON válido (sem markdown, sem blocos de código) com os campos: title, excerpt, category, tags, content`;
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando Motor Master Architect V5.2 (Produção)...");
+  console.log("🚀 Iniciando Motor Master Architect V6.0 (Claude API)...");
 
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "");
-  if (!apiKey) throw new Error("Chave GEMINI_API_KEY não configurada.");
+  const apiKey = (process.env.ANTHROPIC_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  if (!apiKey) throw new Error("Chave ANTHROPIC_API_KEY não configurada.");
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  // Primary model with fallback for high-demand 503 errors
-  const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+  const client = new Anthropic({ apiKey });
+  const MODEL = "claude-haiku-4-5";
 
   let existingPosts: Post[] = [];
   if (fs.existsSync(POSTS_PATH)) {
@@ -154,50 +159,38 @@ export async function runAutomation(targetCategory?: string | null) {
 
   const maxAttempts = 5;
   let lastResult = null;
-  let currentModelIndex = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const model = MODELS[currentModelIndex];
-    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${model}]: Gerando Análise Técnica Master Architect...`);
+    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${MODEL}]: Gerando Análise Técnica Master Architect...`);
 
-    let contentRes;
+    let response: Anthropic.Message;
     try {
-      contentRes = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          thinkingConfig: {
-            thinkingBudget: 2500
-          },
-          systemInstruction: SYSTEM_INSTRUCTION,
-          responseMimeType: "application/json",
-          temperature: 0.5
-        }
+      response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2048,
+        system: SYSTEM_INSTRUCTION,
+        messages: [{ role: "user", content: prompt }]
       });
     } catch (apiError: any) {
-      const errorIs503 = is503Error(apiError);
-      console.warn(`⚠️ Erro na API do Gemini (tentativa ${attempt}):`, apiError.message || apiError);
+      const errorIsOverloaded = isOverloadedError(apiError);
+      console.warn(`⚠️ Erro na API do Claude (tentativa ${attempt}):`, apiError.message || apiError);
 
       if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Gemini após todas as tentativas.");
+        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Claude após todas as tentativas.");
       }
 
-      // On 503, switch to fallback model after 2 consecutive failures
-      if (errorIs503 && attempt >= 2 && currentModelIndex < MODELS.length - 1) {
-        currentModelIndex++;
-        console.log(`🔄 Alternando para modelo fallback: ${MODELS[currentModelIndex]}`);
-      }
-
-      // Exponential backoff: 30s base for 503 (overload), 5s base for other errors
-      const baseDelay = errorIs503 ? 30000 : 5000;
+      // Exponential backoff: 30s base for overloaded, 5s base for other errors
+      const baseDelay = errorIsOverloaded ? 30000 : 5000;
       const delay = baseDelay * attempt;
       console.log(`⏳ Aguardando ${delay / 1000}s antes da próxima tentativa...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       continue;
     }
 
-    let rawContent = contentRes.text || "{}";
-    rawContent = rawContent.replace(/```markdown|```html|```json|```/g, "");
+    // Extract text content from response
+    const textBlock = response.content.find(block => block.type === "text");
+    let rawContent = textBlock?.type === "text" ? textBlock.text : "{}";
+    rawContent = rawContent.replace(/```json|```markdown|```html|```/g, "").trim();
 
     let result: any = null;
     try {
