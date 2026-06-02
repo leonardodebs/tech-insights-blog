@@ -52,7 +52,7 @@ export function validatePost(content: string | undefined): boolean {
 }
 
 export function mapCategory(raw: string): string {
-  const validCategories = ["Cloud", "Linux", "AI", "Security", "DevOps", "Startups"];
+  const validCategories = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups"];
   if (validCategories.includes(raw)) return raw;
 
   const lower = raw.toLowerCase();
@@ -61,7 +61,7 @@ export function mapCategory(raw: string): string {
   if (lower.includes("nuve") || lower.includes("cloud")) return "Cloud";
   if (lower.includes("start") || lower.includes("negoci")) return "Startups";
   if (lower.includes("dev") || lower.includes("ops")) return "DevOps";
-  if (lower.includes("lin") || lower.includes("bash")) return "Linux";
+  if (lower.includes("observ") || lower.includes("monitor") || lower.includes("telemetr") || lower.includes("tracing") || lower.includes("metrics")) return "Observability";
   return "Cloud";
 }
 
@@ -115,7 +115,7 @@ Escreva o post com base APENAS nas notícias que passaram na triagem.
 (formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)
 
 ━━━ CATEGORIA ━━━
-Escolha EXCLUSIVAMENTE uma: Cloud | Linux | AI | Security | DevOps | Startups
+Escolha EXCLUSIVAMENTE uma: Cloud | Observability | AI | Security | DevOps | Startups
 
 ━━━ SAÍDA ━━━
 Retorne APENAS JSON válido (sem markdown, sem blocos de código) com os campos: title, excerpt, category, tags, content`;
@@ -189,14 +189,21 @@ export async function runAutomation(targetCategory?: string | null) {
 
     // Extract text content from response
     const textBlock = response.content.find(block => block.type === "text");
-    let rawContent = textBlock?.type === "text" ? textBlock.text : "{}";
-    rawContent = rawContent.replace(/```json|```markdown|```html|```/g, "").trim();
+    const rawText = textBlock?.type === "text" ? textBlock.text : "{}";
+
+    // Robust JSON extraction: strip code fences, then find first { to last }
+    const stripped = rawText.replace(/```(?:json|markdown|html)?\s*/g, "").replace(/```/g, "").trim();
+    const jsonStart = stripped.indexOf("{");
+    const jsonEnd = stripped.lastIndexOf("}");
+    const rawContent = jsonStart !== -1 && jsonEnd !== -1
+      ? stripped.slice(jsonStart, jsonEnd + 1)
+      : stripped;
 
     let result: any = null;
     try {
       result = JSON.parse(rawContent);
     } catch (e) {
-      console.warn(`⚠️ Erro ao fazer parse do JSON na tentativa ${attempt}. Continuando...`);
+      console.warn(`⚠️ Erro ao fazer parse do JSON na tentativa ${attempt}. Raw: ${rawContent.substring(0, 200)}. Continuando...`);
       if (attempt === maxAttempts) {
         throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar JSON válido após todas as tentativas.");
       }

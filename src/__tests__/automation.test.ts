@@ -66,7 +66,7 @@ Sua empresa já tem uma política de identity federation para workloads em múlt
 describe("mapCategory", () => {
   it("retorna categorias válidas sem alteração", () => {
     expect(mapCategory("Cloud")).toBe("Cloud");
-    expect(mapCategory("Linux")).toBe("Linux");
+    expect(mapCategory("Observability")).toBe("Observability");
     expect(mapCategory("AI")).toBe("AI");
     expect(mapCategory("Security")).toBe("Security");
     expect(mapCategory("DevOps")).toBe("DevOps");
