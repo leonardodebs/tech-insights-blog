@@ -52,7 +52,7 @@ export function validatePost(content: string | undefined): boolean {
 }
 
 export function mapCategory(raw: string): string {
-  const validCategories = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups"];
+  const validCategories = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"];
   if (validCategories.includes(raw)) return raw;
 
   const lower = raw.toLowerCase();
@@ -62,6 +62,7 @@ export function mapCategory(raw: string): string {
   if (lower.includes("start") || lower.includes("negoci")) return "Startups";
   if (lower.includes("dev") || lower.includes("ops")) return "DevOps";
   if (lower.includes("observ") || lower.includes("monitor") || lower.includes("telemetr") || lower.includes("tracing") || lower.includes("metrics")) return "Observability";
+  if (lower.includes("open source") || lower.includes("opensource") || lower.includes("open-source") || lower.includes("foss") || lower.includes("github") || lower.includes("licen")) return "Open Source";
   return "Cloud";
 }
 
@@ -115,7 +116,7 @@ Escreva o post com base APENAS nas notícias que passaram na triagem.
 (formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)
 
 ━━━ CATEGORIA ━━━
-Escolha EXCLUSIVAMENTE uma: Cloud | Observability | AI | Security | DevOps | Startups
+Escolha EXCLUSIVAMENTE uma: Cloud | Observability | AI | Security | DevOps | Startups | Open Source
 
 ━━━ SAÍDA ━━━
 Retorne APENAS JSON válido (sem markdown, sem blocos de código) com os campos: title, excerpt, category, tags, content`;

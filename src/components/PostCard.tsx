@@ -25,6 +25,7 @@ export default function PostCard({ post, onClick }: PostCardProps) {
           post.category === 'Observability' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
           post.category === 'Security' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20' :
           post.category === 'DevOps' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+          post.category === 'Open Source' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20' :
           'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
         }`}>
           {post.category}

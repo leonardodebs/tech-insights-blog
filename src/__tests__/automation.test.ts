@@ -71,6 +71,7 @@ describe("mapCategory", () => {
     expect(mapCategory("Security")).toBe("Security");
     expect(mapCategory("DevOps")).toBe("DevOps");
     expect(mapCategory("Startups")).toBe("Startups");
+    expect(mapCategory("Open Source")).toBe("Open Source");
   });
 
   it("mapeia variantes de Segurança", () => {

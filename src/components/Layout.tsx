@@ -17,7 +17,7 @@ export default function Layout({
   const { theme, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const categories = ['Cloud', 'Observability', 'AI', 'Security', 'DevOps', 'Startups'];
+  const categories = ['Cloud', 'Observability', 'AI', 'Security', 'DevOps', 'Startups', 'Open Source'];
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-zinc-950 transition-colors duration-300">
