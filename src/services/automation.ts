@@ -170,6 +170,22 @@ export async function runAutomation(targetCategory?: string | null) {
         model: MODEL,
         max_tokens: 2048,
         system: SYSTEM_INSTRUCTION,
+        tools: [{
+          name: "publish_post",
+          description: "Publica o post técnico gerado com todos os campos obrigatórios.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              title:    { type: "string", description: "Título do post refletindo a tese central" },
+              excerpt:  { type: "string", description: "Resumo de 2-3 linhas com a tese explícita" },
+              category: { type: "string", enum: ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"] },
+              tags:     { type: "array", items: { type: "string" }, description: "Lista de 3-5 tags técnicas" },
+              content:  { type: "string", description: "Conteúdo completo do post em markdown seguindo a estrutura obrigatória" }
+            },
+            required: ["title", "excerpt", "category", "tags", "content"]
+          }
+        }],
+        tool_choice: { type: "tool", name: "publish_post" },
         messages: [{ role: "user", content: prompt }]
       });
     } catch (apiError: any) {
@@ -188,25 +204,15 @@ export async function runAutomation(targetCategory?: string | null) {
       continue;
     }
 
-    // Extract text content from response
-    const textBlock = response.content.find(block => block.type === "text");
-    const rawText = textBlock?.type === "text" ? textBlock.text : "{}";
-
-    // Robust JSON extraction: strip code fences, then find first { to last }
-    const stripped = rawText.replace(/```(?:json|markdown|html)?\s*/g, "").replace(/```/g, "").trim();
-    const jsonStart = stripped.indexOf("{");
-    const jsonEnd = stripped.lastIndexOf("}");
-    const rawContent = jsonStart !== -1 && jsonEnd !== -1
-      ? stripped.slice(jsonStart, jsonEnd + 1)
-      : stripped;
-
+    // Extract structured result from tool use — always valid JSON
+    const toolBlock = response.content.find(block => block.type === "tool_use");
     let result: any = null;
-    try {
-      result = JSON.parse(rawContent);
-    } catch (e) {
-      console.warn(`⚠️ Erro ao fazer parse do JSON na tentativa ${attempt}. Raw: ${rawContent.substring(0, 200)}. Continuando...`);
+    if (toolBlock?.type === "tool_use") {
+      result = toolBlock.input;
+    } else {
+      console.warn(`⚠️ Resposta sem tool_use na tentativa ${attempt}. Continuando...`);
       if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar JSON válido após todas as tentativas.");
+        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em usar a tool após todas as tentativas.");
       }
       continue;
     }
