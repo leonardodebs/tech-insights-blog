@@ -14,31 +14,63 @@ const parser = new Parser({
 
 const POSTS_PATH = path.resolve(process.cwd(), "src/data/posts.json");
 
-const FEEDS = [
-  "https://aws.amazon.com/blogs/aws/feed/",
-  "https://azure.microsoft.com/en-us/blog/feed/",
-  "https://cloud.google.com/blog/rss.xml",
-  "https://www.phoronix.com/rss.php",
+const ALL_CATEGORIES = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"] as const;
+type Category = typeof ALL_CATEGORIES[number];
+
+// Feeds organizados por categoria para garantir cobertura balanceada
+const FEEDS_BY_CATEGORY: Record<Category, string[]> = {
+  Cloud: [
+    "https://aws.amazon.com/blogs/aws/feed/",
+    "https://azure.microsoft.com/en-us/blog/feed/",
+    "https://cloud.google.com/blog/rss.xml",
+    "https://www.infoq.com/feed/cloud-computing/",
+  ],
+  AI: [
+    "https://openai.com/news/rss.xml",
+    "https://venturebeat.com/category/ai/feed/",
+    "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
+    "https://arstechnica.com/information-technology/feed/",
+  ],
+  Security: [
+    "https://www.bleepingcomputer.com/feed/",
+    "https://www.darkreading.com/rss.xml",
+    "https://krebsonsecurity.com/feed/",
+  ],
+  DevOps: [
+    "https://kubernetes.io/feed.xml",
+    "https://devops.com/feed/",
+    "https://www.infoq.com/feed/devops/",
+  ],
+  Observability: [
+    "https://grafana.com/blog/rss.xml",
+    "https://opentelemetry.io/blog/index.xml",
+    "https://www.cncf.io/blog/feed/",
+    "https://devops.com/feed/",
+  ],
+  Startups: [
+    "https://techcrunch.com/category/startups/feed/",
+    "https://www.wired.com/category/business/feed/",
+    "https://tecnoblog.net/feed/",
+  ],
+  "Open Source": [
+    "https://github.blog/feed/",
+    "https://opensource.com/feed",
+    "https://www.linux.com/feed/",
+    "https://www.cncf.io/blog/feed/",
+  ],
+};
+
+// Feeds gerais usados como complemento
+const GENERAL_FEEDS = [
   "https://arstechnica.com/information-technology/feed/",
-  "https://www.zdnet.com/topic/linux/rss.xml",
-  "https://openai.com/news/rss.xml",
-  "https://venturebeat.com/category/ai/feed/",
-  "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
-  "https://www.bleepingcomputer.com/feed/",
-  "https://www.darkreading.com/rss.xml",
-  "https://krebsonsecurity.com/feed/",
-  "https://kubernetes.io/feed.xml",
-  "https://devops.com/feed/",
-  "https://www.infoq.com/feed/cloud-computing/",
-  "https://techcrunch.com/category/startups/feed/",
   "https://www.wired.com/category/business/feed/",
-  "https://tecnoblog.net/feed/"
+  "https://techcrunch.com/category/startups/feed/",
 ];
 
 export function validatePost(content: string | undefined): boolean {
   if (!content) return false;
   const lower = content.toLowerCase();
-  const techTerms = ["aws", "cloud", "linux", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability"];
+  const techTerms = ["aws", "cloud", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability", "open source", "startup", "grafana", "telemetry", "github"];
   const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "escalável", "preciso", "líder de mercado"];
 
   const conclusionMatch = content.match(/## Conclusão direta([\s\S]*?)(## |$)/);
@@ -51,9 +83,8 @@ export function validatePost(content: string | undefined): boolean {
   return hasTechTerm && !hasForbiddenTerm && hasMinLength && hasCTA;
 }
 
-export function mapCategory(raw: string): string {
-  const validCategories = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"];
-  if (validCategories.includes(raw)) return raw;
+export function mapCategory(raw: string): Category {
+  if ((ALL_CATEGORIES as readonly string[]).includes(raw)) return raw as Category;
 
   const lower = raw.toLowerCase();
   if (lower.includes("segur") || lower.includes("cyber") || lower.includes("security")) return "Security";
@@ -64,6 +95,22 @@ export function mapCategory(raw: string): string {
   if (lower.includes("observ") || lower.includes("monitor") || lower.includes("telemetr") || lower.includes("tracing") || lower.includes("metrics")) return "Observability";
   if (lower.includes("open source") || lower.includes("opensource") || lower.includes("open-source") || lower.includes("foss") || lower.includes("github") || lower.includes("licen")) return "Open Source";
   return "Cloud";
+}
+
+// Retorna a categoria menos representada nos últimos N posts
+function pickTargetCategory(posts: Post[], windowSize = 21): Category {
+  const recent = posts.slice(0, windowSize);
+  const counts: Record<string, number> = {};
+  for (const cat of ALL_CATEGORIES) counts[cat] = 0;
+  for (const p of recent) {
+    if (counts[p.category] !== undefined) counts[p.category]++;
+  }
+  // Ordena por menor contagem, desempata aleatoriamente
+  const sorted = [...ALL_CATEGORIES].sort((a, b) => {
+    const diff = counts[a] - counts[b];
+    return diff !== 0 ? diff : Math.random() - 0.5;
+  });
+  return sorted[0];
 }
 
 function isOverloadedError(err: any): boolean {
@@ -78,16 +125,21 @@ function isOverloadedError(err: any): boolean {
   );
 }
 
-const SYSTEM_INSTRUCTION = `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
+function buildSystemInstruction(targetCategory: Category): string {
+  return `Você é um Engenheiro Sênior (Cloud, DevOps, Segurança, IA) escrevendo para outros profissionais experientes.
+
+━━━ CATEGORIA OBRIGATÓRIA ━━━
+⚠️ O post de hoje DEVE ser da categoria: **${targetCategory}**
+Escreva a análise técnica com foco nessa categoria. Adapte o ângulo das notícias para esse tema.
 
 ━━━ ETAPA 1 — TRIAGEM (execute antes de escrever qualquer palavra) ━━━
 1. Leia todas as notícias fornecidas.
-2. Identifique UM tema central que conecta a maioria delas. Defina internamente: "Tese: ___"
-3. Descarte qualquer notícia que não contribua diretamente para essa tese — mesmo que seja tecnicamente interessante.
-4. Se restarem menos de 2 notícias relevantes, escolha o tema da notícia mais forte e descarte todas as outras.
+2. Identifique UM tema central dentro de **${targetCategory}** que conecta as notícias mais relevantes.
+3. Descarte notícias que não contribuam para esse tema.
+4. Se necessário, use apenas 1 notícia — o que importa é a profundidade técnica.
 
 ━━━ ETAPA 2 — GERAÇÃO ━━━
-Escreva o post com base APENAS nas notícias que passaram na triagem.
+Escreva o post com base APENAS nas notícias selecionadas.
 
 ⚠️ REGRAS CRÍTICAS (descumprimento = rejeição automática):
 - PROIBIDO: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "líder de mercado"
@@ -110,19 +162,14 @@ Escreva o post com base APENAS nas notícias que passaram na triagem.
 (segmentado por perfil conforme relevância: Engenheiro de Segurança, Arquiteto, DevOps/MLOps)
 
 ## Conclusão direta
-(1 parágrafo de síntese + 1 pergunta provocativa para o leitor, ex: "Sua empresa já tem uma política de identidade para agentes não-humanos?" ou "Como você está planejando a agilidade criptográfica para 2029?")
+(1 parágrafo de síntese + 1 pergunta provocativa para o leitor)
 
 ## Fontes
-(formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)
-
-━━━ CATEGORIA ━━━
-Escolha EXCLUSIVAMENTE uma: Cloud | Observability | AI | Security | DevOps | Startups | Open Source
-
-━━━ SAÍDA ━━━
-Retorne APENAS JSON válido (sem markdown, sem blocos de código) com os campos: title, excerpt, category, tags, content`;
+(formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)`;
+}
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando Motor Master Architect V6.0 (Claude API)...");
+  console.log("🚀 Iniciando Motor Master Architect V7.0 (Claude API + Rotação de Categorias)...");
 
   const apiKey = (process.env.ANTHROPIC_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) throw new Error("Chave ANTHROPIC_API_KEY não configurada.");
@@ -135,41 +182,56 @@ export async function runAutomation(targetCategory?: string | null) {
     existingPosts = JSON.parse(fs.readFileSync(POSTS_PATH, "utf-8") || "[]");
   }
 
-  // Deduplication: collect titles and tags from last 7 posts
-  const recentPostsSummary = existingPosts.slice(0, 7).map(p =>
-    `- "${p.title}" [${p.category}] tags: ${p.tags.join(", ")}`
+  // Escolhe a categoria menos usada nos últimos 21 posts (3 ciclos de 7)
+  const forcedCategory: Category = targetCategory
+    ? mapCategory(targetCategory)
+    : pickTargetCategory(existingPosts);
+
+  console.log(`🎯 Categoria alvo: ${forcedCategory}`);
+
+  // Deduplication: últimos 10 posts
+  const recentPostsSummary = existingPosts.slice(0, 10).map(p =>
+    `- "${p.title}" [${p.category}]`
   ).join("\n");
 
+  // Busca notícias: prioriza feeds da categoria alvo + feeds gerais
+  const categoryFeeds = FEEDS_BY_CATEGORY[forcedCategory] || [];
+  const allFeedsToFetch = [...categoryFeeds, ...GENERAL_FEEDS];
   const newsItems: string[] = [];
-  for (const url of FEEDS) {
+
+  for (const url of allFeedsToFetch) {
     try {
       const feed = await parser.parseURL(url);
-      feed.items.slice(0, 5).forEach(item => {
+      feed.items.slice(0, 4).forEach(item => {
         newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
       });
     } catch (e) { /* skip */ }
   }
 
-  const context = newsItems.sort(() => Math.random() - 0.5).slice(0, 8).join("\n");
+  // Garante que notícias dos feeds da categoria aparecem no contexto
+  const categoryNews = newsItems.slice(0, categoryFeeds.length * 4);
+  const generalNews = newsItems.slice(categoryFeeds.length * 4);
+  const shuffledGeneral = generalNews.sort(() => Math.random() - 0.5).slice(0, 4);
+  const context = [...categoryNews, ...shuffledGeneral].slice(0, 12).join("\n");
 
   const deduplicationHint = recentPostsSummary
-    ? `\n\n⚠️ TÓPICOS RECENTES JÁ PUBLICADOS (EVITE REPETIR TESE OU ÂNGULO SIMILAR):\n${recentPostsSummary}\n`
+    ? `\n\n⚠️ POSTS RECENTES (EVITE REPETIR TESE OU ÂNGULO):\n${recentPostsSummary}\n`
     : "";
 
-  const prompt = `Crie a análise técnica baseada nestas notícias:\n${context.substring(0, 3000)}${deduplicationHint}`;
+  const prompt = `Crie a análise técnica sobre **${forcedCategory}** baseada nestas notícias:\n${context.substring(0, 4000)}${deduplicationHint}`;
 
   const maxAttempts = 5;
   let lastResult = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${MODEL}]: Gerando Análise Técnica Master Architect...`);
+    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${MODEL}]: Gerando post de ${forcedCategory}...`);
 
     let response: Anthropic.Message;
     try {
       response = await client.messages.create({
         model: MODEL,
         max_tokens: 2048,
-        system: SYSTEM_INSTRUCTION,
+        system: buildSystemInstruction(forcedCategory),
         tools: [{
           name: "publish_post",
           description: "Publica o post técnico gerado com todos os campos obrigatórios.",
@@ -178,7 +240,7 @@ export async function runAutomation(targetCategory?: string | null) {
             properties: {
               title:    { type: "string", description: "Título do post refletindo a tese central" },
               excerpt:  { type: "string", description: "Resumo de 2-3 linhas com a tese explícita" },
-              category: { type: "string", enum: ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"] },
+              category: { type: "string", enum: [forcedCategory] },
               tags:     { type: "array", items: { type: "string" }, description: "Lista de 3-5 tags técnicas" },
               content:  { type: "string", description: "Conteúdo completo do post em markdown seguindo a estrutura obrigatória" }
             },
@@ -196,7 +258,6 @@ export async function runAutomation(targetCategory?: string | null) {
         throw new Error("❌ MOTOR EXAUSTO: Falha na API do Claude após todas as tentativas.");
       }
 
-      // Exponential backoff: 30s base for overloaded, 5s base for other errors
       const baseDelay = errorIsOverloaded ? 30000 : 5000;
       const delay = baseDelay * attempt;
       console.log(`⏳ Aguardando ${delay / 1000}s antes da próxima tentativa...`);
@@ -204,7 +265,7 @@ export async function runAutomation(targetCategory?: string | null) {
       continue;
     }
 
-    // Extract structured result from tool use — always valid JSON
+    // Extrai resultado do tool use — JSON sempre válido
     const toolBlock = response.content.find(block => block.type === "tool_use");
     let result: any = null;
     if (toolBlock?.type === "tool_use") {
@@ -230,7 +291,6 @@ export async function runAutomation(targetCategory?: string | null) {
   }
 
   const result = lastResult!;
-  const finalCategory = mapCategory(result.category || "Cloud");
 
   const newPost: Post = {
     id: `post-${Date.now()}`,
@@ -239,7 +299,7 @@ export async function runAutomation(targetCategory?: string | null) {
     excerpt: result.excerpt,
     content: result.content,
     tags: result.tags || [],
-    category: finalCategory
+    category: forcedCategory
   };
 
   existingPosts.unshift(newPost);
@@ -267,6 +327,6 @@ export async function runAutomation(targetCategory?: string | null) {
     console.warn("⚠️ VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não definidos — post salvo apenas em posts.json.");
   }
 
-  console.log(`✅ Artigo gerado com sucesso: ${newPost.title}`);
+  console.log(`✅ Artigo gerado com sucesso: [${newPost.category}] ${newPost.title}`);
   return newPost;
 }
