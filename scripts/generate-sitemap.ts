@@ -1,5 +1,6 @@
 /**
- * Gera dist/sitemap.xml com todos os posts do posts.json.
+ * Gera dist/sitemap-posts.xml com todos os posts do posts.json.
+ * (Renomeado de sitemap.xml para contornar cache do Search Console)
  * Executado após `vite build` no script "build" do package.json.
  */
 import fs from "fs";
@@ -42,5 +43,5 @@ ${allUrls
   .join("\n")}
 </urlset>`;
 
-fs.writeFileSync(path.join(DIST_DIR, "sitemap.xml"), xml, "utf-8");
-console.log(`✅ sitemap.xml gerado com ${allUrls.length} URLs.`);
+fs.writeFileSync(path.join(DIST_DIR, "sitemap-posts.xml"), xml, "utf-8");
+console.log(`✅ sitemap-posts.xml gerado com ${allUrls.length} URLs.`);

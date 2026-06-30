@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://leonardodebs.github.io/tech-insights-blog/sitemap.xml
+Sitemap: https://leonardodebs.github.io/tech-insights-blog/sitemap-posts.xml
