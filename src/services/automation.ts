@@ -67,26 +67,71 @@ const GENERAL_FEEDS = [
   "https://techcrunch.com/category/startups/feed/",
 ];
 
-export function validatePost(content: string | undefined): boolean {
-  if (!content) return false;
+const TECH_TERMS = ["aws", "cloud", "security", "devops", "kubernetes", "docker", "ai", "observability", "open source", "startup", "grafana", "telemetry", "github", "api", "infra"];
+
+// Jargão de marketing banido. Casado com fronteira de palavra (via \p{L}) para
+// não derrubar o post por substring — ex.: "impreciso" não deve casar "preciso".
+const FORBIDDEN_TERMS = [
+  "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço",
+  "está revolucionando", "revolucionário", "inovadora", "líder de mercado",
+];
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function containsTerm(text: string, term: string): boolean {
+  return new RegExp(`(^|[^\\p{L}])${escapeRegex(term)}([^\\p{L}]|$)`, "iu").test(text);
+}
+
+export interface ValidationResult {
+  ok: boolean;
+  reasons: string[];
+}
+
+/** Valida o post e explica cada reprovação, para realimentar o modelo no retry. */
+export function validatePostDetailed(content: string | undefined): ValidationResult {
+  const reasons: string[] = [];
+  if (!content) return { ok: false, reasons: ["Conteúdo vazio."] };
+
   const lower = content.toLowerCase();
-  const techTerms = ["aws", "cloud", "security", "devops", "kubernetes", "docker", "ia", "ai", "observability", "open source", "startup", "grafana", "telemetry", "github"];
-  const forbiddenTerms = ["está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "escalável", "preciso", "líder de mercado"];
 
-  const conclusionMatch = content.match(/## Conclusão direta([\s\S]*?)(## |$)/);
-  const hasCTA = conclusionMatch ? conclusionMatch[1].includes("?") : false;
+  if (!TECH_TERMS.some(term => lower.includes(term))) {
+    reasons.push("Falta terminologia técnica reconhecível (ex.: cloud, kubernetes, API, observability).");
+  }
 
-  const hasTechTerm = techTerms.some(term => lower.includes(term));
-  const hasForbiddenTerm = forbiddenTerms.some(term => lower.includes(term));
-  const hasMinLength = content.length >= 1500;
+  const hits = FORBIDDEN_TERMS.filter(term => containsTerm(content, term));
+  if (hits.length > 0) {
+    reasons.push(`Contém jargão de marketing proibido: ${hits.map(h => `"${h}"`).join(", ")}. Reescreva sem essas expressões.`);
+  }
 
-  return hasTechTerm && !hasForbiddenTerm && hasMinLength && hasCTA;
+  if (content.length < 1500) {
+    reasons.push(`Texto curto demais (${content.length} caracteres). Mínimo de 1500.`);
+  }
+
+  // Aceita "## Conclusão direta", "## Conclusão Direta", "## Conclusao", etc.
+  const conclusionMatch = content.match(/##\s*Conclus[ãa]o[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (!conclusionMatch) {
+    reasons.push('Falta a seção "## Conclusão direta".');
+  } else if (!conclusionMatch[1].includes("?")) {
+    reasons.push('A "## Conclusão direta" precisa terminar com uma pergunta provocativa (com "?").');
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+export function validatePost(content: string | undefined): boolean {
+  return validatePostDetailed(content).ok;
+}
+
+function stripAccents(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 export function mapCategory(raw: string): Category {
   if ((ALL_CATEGORIES as readonly string[]).includes(raw)) return raw as Category;
 
-  const lower = raw.toLowerCase();
+  const lower = stripAccents(raw.toLowerCase());
   if (lower.includes("segur") || lower.includes("cyber") || lower.includes("security")) return "Security";
   if (lower.includes("inteligenc") || lower.includes("ai") || lower.includes("ia")) return "AI";
   if (lower.includes("nuve") || lower.includes("cloud")) return "Cloud";
@@ -142,8 +187,8 @@ Escreva a análise técnica com foco nessa categoria. Adapte o ângulo das notí
 Escreva o post com base APENAS nas notícias selecionadas.
 
 ⚠️ REGRAS CRÍTICAS (descumprimento = rejeição automática):
-- PROIBIDO: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovador", "escalável", "líder de mercado"
-- MÍNIMO de 400 palavras
+- PROIBIDO: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "líder de mercado"
+- MÍNIMO de 1500 caracteres
 - NÃO liste notícias — integre em narrativa técnica com tese clara
 - FOCO: explique o "Como" e os "Trade-offs" reais de arquitetura
 - O título deve refletir a tese, não o tema genérico
@@ -222,9 +267,15 @@ export async function runAutomation(targetCategory?: string | null) {
 
   const maxAttempts = 5;
   let lastResult = null;
+  let lastRejection: string[] = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${MODEL}]: Gerando post de ${forcedCategory}...`);
+
+    // Realimenta o motivo da reprovação anterior para o modelo corrigir
+    const retryFeedback = lastRejection.length > 0
+      ? `\n\n⛔ A TENTATIVA ANTERIOR FOI REPROVADA PELOS SEGUINTES MOTIVOS — CORRIJA TODOS:\n${lastRejection.map(r => `- ${r}`).join("\n")}`
+      : "";
 
     let response: Anthropic.Message;
     try {
@@ -248,7 +299,7 @@ export async function runAutomation(targetCategory?: string | null) {
           }
         }],
         tool_choice: { type: "tool", name: "publish_post" },
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: "user", content: prompt + retryFeedback }]
       });
     } catch (apiError: any) {
       const errorIsOverloaded = isOverloadedError(apiError);
@@ -279,11 +330,14 @@ export async function runAutomation(targetCategory?: string | null) {
     }
 
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
-    if (result && result.content && validatePost(result.content)) {
+    const validation = validatePostDetailed(result?.content);
+    if (validation.ok) {
       lastResult = result;
       break;
     } else {
-      console.warn(`⚠️ Tentativa ${attempt} reprovada. O artigo falhou na validação de qualidade.`);
+      lastRejection = validation.reasons;
+      console.warn(`⚠️ Tentativa ${attempt} reprovada:`);
+      validation.reasons.forEach(r => console.warn(`   - ${r}`));
       if (attempt === maxAttempts) {
         throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após todas as tentativas.");
       }

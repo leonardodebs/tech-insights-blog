@@ -10,10 +10,18 @@ Isso tem impacto direto em como os times de DevOps configuram seus clusters.
 - Redução de latência em 40% para workloads containerizados
 - Trade-off: custo maior para instâncias spot com preempção frequente
 - Security: nova surface de ataque via IMDS v2 não habilitado por padrão
+- Observability: métricas de auto-scaling exigem novos dashboards de custo
+- Kubernetes: o controller precisa de RBAC adicional para gerenciar as novas primitivas de rede,
+  o que implica revisão de service accounts em clusters multi-tenant já em produção.
 
 ## O que muda na prática
 **Arquiteto:** revisar blueprints de multi-region com as novas primitivas.
 **DevOps/MLOps:** atualizar pipelines de CI/CD para aproveitar o novo auto-scaling.
+A superfície de exposição cresce proporcionalmente ao número de contas gerenciadas,
+exigindo que o time de Segurança revise as políticas de acesso antes de habilitar
+o recurso em produção. Equipes que não fizerem essa revisão correm risco de manter
+permissões herdadas de perfis antigos que nunca foram revogados corretamente
+ao longo dos últimos ciclos de rotação programada de acesso.
 
 ## Conclusão direta
 A mudança representa um ponto de inflexão para equipes que operam na AWS em escala.
