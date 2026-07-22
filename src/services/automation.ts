@@ -281,7 +281,11 @@ export async function runAutomation(targetCategory?: string | null) {
     try {
       response = await client.messages.create({
         model: MODEL,
-        max_tokens: 2048,
+        // O campo `content` sozinho costuma ter ~1500-2000 tokens (posts reais
+        // têm 5-7 mil caracteres). 2048 no total era curto e truncava o JSON
+        // da tool no meio do artigo em temas mais densos (ex.: Security),
+        // fazendo `content` chegar vazio. 8192 dá margem confortável.
+        max_tokens: 8192,
         system: buildSystemInstruction(forcedCategory),
         tools: [{
           name: "publish_post",
@@ -314,6 +318,10 @@ export async function runAutomation(targetCategory?: string | null) {
       console.log(`⏳ Aguardando ${delay / 1000}s antes da próxima tentativa...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       continue;
+    }
+
+    if (response.stop_reason === "max_tokens") {
+      console.warn(`⚠️ Tentativa ${attempt}: resposta truncada por max_tokens — o JSON da tool pode ter ficado incompleto.`);
     }
 
     // Extrai resultado do tool use — JSON sempre válido
