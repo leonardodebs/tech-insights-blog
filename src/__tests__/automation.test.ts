@@ -28,7 +28,7 @@ A mudança representa um ponto de inflexão para equipes que operam na AWS em es
 Sua empresa já tem uma política de identity federation para workloads em múltiplas contas?
 
 ## Fontes
-[Fonte: AWS Blog] AWS lança suporte nativo a Kubernetes multi-cluster`;
+[Fonte: AWS Blog] [AWS lança suporte nativo a Kubernetes multi-cluster](https://aws.amazon.com/blogs/aws/exemplo)`;
 
   it("aprova conteúdo técnico válido", () => {
     expect(validatePost(validContent)).toBe(true);
@@ -64,6 +64,34 @@ Sua empresa já tem uma política de identity federation para workloads em múlt
     const noTech = validContent
       .replace(/aws|cloud|linux|security|devops|kubernetes|docker|ia|ai|observability/gi, "sistema");
     expect(validatePost(noTech)).toBe(false);
+  });
+
+  it("rejeita fonte sem link markdown real", () => {
+    const noLink = validContent.replace(
+      "[Fonte: AWS Blog] [AWS lança suporte nativo a Kubernetes multi-cluster](https://aws.amazon.com/blogs/aws/exemplo)",
+      "[Fonte: AWS Blog] AWS lança suporte nativo a Kubernetes multi-cluster"
+    );
+    expect(validatePost(noLink)).toBe(false);
+  });
+
+  it("rejeita quando há múltiplas fontes e apenas uma tem link", () => {
+    const mixed = validContent.replace(
+      "## Fontes\n[Fonte: AWS Blog] [AWS lança suporte nativo a Kubernetes multi-cluster](https://aws.amazon.com/blogs/aws/exemplo)",
+      "## Fontes\n[Fonte: AWS Blog] [AWS lança suporte nativo a Kubernetes multi-cluster](https://aws.amazon.com/blogs/aws/exemplo)\n[Fonte: InfoQ] Artigo sem link nenhum"
+    );
+    expect(validatePost(mixed)).toBe(false);
+  });
+
+  it("aprova quando a fonte tem link markdown real", () => {
+    expect(validatePost(validContent)).toBe(true);
+  });
+
+  it("rejeita conteúdo sem seção Fontes", () => {
+    const noSources = validContent.replace(
+      /## Fontes\n\[Fonte: AWS Blog\].*$/,
+      ""
+    );
+    expect(validatePost(noSources)).toBe(false);
   });
 
   it("rejeita conteúdo muito curto (< 1500 chars)", () => {

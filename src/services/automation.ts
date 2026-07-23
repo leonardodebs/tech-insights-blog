@@ -117,6 +117,18 @@ export function validatePostDetailed(content: string | undefined): ValidationRes
     reasons.push('A "## Conclusão direta" precisa terminar com uma pergunta provocativa (com "?").');
   }
 
+  // Aceita "## Fontes" — cada linha deve ser um link markdown real, não só texto solto
+  const sourcesMatch = content.match(/##\s*Fontes[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (!sourcesMatch) {
+    reasons.push('Falta a seção "## Fontes".');
+  } else {
+    const sourceLines = sourcesMatch[1].split("\n").map(l => l.trim()).filter(Boolean);
+    const unlinkedLines = sourceLines.filter(l => !/\]\(https?:\/\/[^\s)]+\)/.test(l));
+    if (sourceLines.length > 0 && unlinkedLines.length > 0) {
+      reasons.push(`As fontes precisam ser links markdown reais no formato [Fonte: Nome] [Título](URL), usando a URL fornecida no contexto. Linhas sem link: ${unlinkedLines.length}.`);
+    }
+  }
+
   return { ok: reasons.length === 0, reasons };
 }
 
@@ -222,7 +234,7 @@ Escreva o post com base APENAS nas notícias selecionadas.
 (1 parágrafo de síntese + 1 pergunta provocativa para o leitor)
 
 ## Fontes
-(formato: [Fonte: Nome] Título. Liste apenas as fontes efetivamente usadas no texto)`;
+(formato OBRIGATÓRIO: link markdown real — [Fonte: Nome] [Título](URL). Use exatamente a URL fornecida entre "(URL: ...)" de cada notícia no contexto, copiada sem alterar. NUNCA invente ou deixe uma fonte sem link. Liste apenas as fontes efetivamente usadas no texto)`;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
@@ -260,7 +272,8 @@ export async function runAutomation(targetCategory?: string | null) {
     try {
       const feed = await parser.parseURL(url);
       feed.items.slice(0, 4).forEach(item => {
-        newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""}`);
+        const link = item.link || "";
+        newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""} (URL: ${link})`);
       });
     } catch (e) { /* skip */ }
   }
@@ -275,7 +288,9 @@ export async function runAutomation(targetCategory?: string | null) {
     ? `\n\n⚠️ POSTS RECENTES (EVITE REPETIR TESE OU ÂNGULO):\n${recentPostsSummary}\n`
     : "";
 
-  const prompt = `Crie a análise técnica sobre **${forcedCategory}** baseada nestas notícias:\n${context.substring(0, 4000)}${deduplicationHint}`;
+  // Limite maior que antes (era 4000) para acomodar as URLs de cada notícia
+  // sem cortar o contexto no meio de um item.
+  const prompt = `Crie a análise técnica sobre **${forcedCategory}** baseada nestas notícias:\n${context.substring(0, 5500)}${deduplicationHint}`;
 
   const maxAttempts = 5;
   let lastResult = null;
