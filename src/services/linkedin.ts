@@ -19,6 +19,20 @@ const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
 // então truncamos com margem de segurança em vez de arriscar a chamada falhar.
 const MAX_COMMENTARY_LENGTH = 2900;
 
+// O campo `commentary` usa o "little text format" do LinkedIn, onde estes
+// caracteres são reservados para sintaxe de menção/hashtag/template
+// (ex.: @[Nome](urn), {hashtag|#|tag}). Qualquer ocorrência literal desses
+// caracteres no texto livre PRECISA ser escapada com \, senão o parser do
+// LinkedIn quebra no meio da string e trunca silenciosamente o resto do post
+// (foi exatamente o bug: um parêntese literal na legenda cortou tudo depois,
+// incluindo hashtags e link). Ver:
+// https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/little-text-format
+const LITTLE_FORMAT_RESERVED = /[\\|{}@[\]()<>#*_~]/g;
+
+function escapeLittleText(text: string): string {
+  return text.replace(LITTLE_FORMAT_RESERVED, "\\$&");
+}
+
 export interface LinkedInPostResult {
   postUrn: string;
 }
@@ -27,11 +41,16 @@ function isTransientError(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
-function buildCommentary(post: Post): string {
-  const caption = post.linkedinCaption?.trim();
-  if (!caption) {
+export function buildCommentary(post: Post): string {
+  const rawCaption = post.linkedinCaption?.trim();
+  if (!rawCaption) {
     throw new Error("Post não tem linkedinCaption — nada para publicar no LinkedIn.");
   }
+
+  // Escapa a legenda (texto livre, pode conter parênteses/colchetes/etc).
+  // As hashtags são construídas por nós no formato "#Palavra" simples, que já
+  // é sintaxe válida de HashtagElement — não devem ser escapadas.
+  const caption = escapeLittleText(rawCaption);
 
   const hashtags = (post.linkedinHashtags || [])
     .slice(0, 5)
@@ -44,7 +63,9 @@ function buildCommentary(post: Post): string {
 
   if (commentary.length > MAX_COMMENTARY_LENGTH) {
     const overflow = commentary.length - MAX_COMMENTARY_LENGTH;
-    const truncatedCaption = caption.slice(0, Math.max(0, caption.length - overflow - 1)) + "…";
+    let truncatedCaption = caption.slice(0, Math.max(0, caption.length - overflow - 1));
+    // Evita deixar uma barra de escape solta no ponto de corte
+    truncatedCaption = truncatedCaption.replace(/\\+$/, "") + "…";
     commentary = [truncatedCaption, hashtags, postUrl].filter(Boolean).join("\n\n");
   }
 
