@@ -58,7 +58,7 @@ export function buildCommentary(post: Post): string {
     .join(" ");
 
   const postUrl = `${BASE_URL}/posts/${post.id}/`;
-  const cta = `📖 Análise técnica completa:\n${postUrl}`;
+  const cta = `Artigo completo com os detalhes técnicos:\n${postUrl}`;
 
   let commentary = [caption, hashtags, cta].filter(Boolean).join("\n\n");
 
