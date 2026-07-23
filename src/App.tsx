@@ -118,7 +118,7 @@ export default function App() {
 
   const handleShare = async () => {
     if (!selectedPost) return;
-    const url = `${window.location.origin}/posts/${selectedPost.id}/`;
+    const url = `${window.location.origin}${import.meta.env.BASE_URL}posts/${selectedPost.id}/`;
     try {
       await navigator.clipboard.writeText(url);
       setIsCopied(true);
@@ -131,14 +131,14 @@ export default function App() {
 
   const shareOnTwitter = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(`${window.location.origin}/posts/${selectedPost.id}/`);
+    const url = encodeURIComponent(`${window.location.origin}${import.meta.env.BASE_URL}posts/${selectedPost.id}/`);
     const text = encodeURIComponent(`Confira este artigo: ${selectedPost.title}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
   };
 
   const shareOnLinkedIn = () => {
     if (!selectedPost) return;
-    const url = encodeURIComponent(`${window.location.origin}/posts/${selectedPost.id}/`);
+    const url = encodeURIComponent(`${window.location.origin}${import.meta.env.BASE_URL}posts/${selectedPost.id}/`);
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
   };
 
