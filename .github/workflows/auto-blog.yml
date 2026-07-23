@@ -2,7 +2,7 @@ name: "AI Blog - Generate Daily Post"
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Todos os dias às 04:00 UTC (1:00 AM Brasília)
+    - cron: '0 21 * * *' # Todos os dias às 21:00 UTC (18:00 Brasília)
   workflow_dispatch:
 
 permissions:
