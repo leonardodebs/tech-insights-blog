@@ -27,6 +27,10 @@ async function deleteOldLinkedInPost() {
       "X-RestLi-Method": "DELETE",
     },
   });
+  if (res.status === 404) {
+    console.log("ℹ️ Post antigo já não existia mais no LinkedIn (removido manualmente ou já deletado antes).");
+    return;
+  }
   if (res.status !== 204 && res.status !== 200) {
     const text = await res.text();
     throw new Error(`Falha ao deletar post antigo do LinkedIn (${res.status}): ${text}`);
