@@ -24,6 +24,7 @@ async function deleteOldLinkedInPost() {
       "Authorization": `Bearer ${accessToken}`,
       "X-Restli-Protocol-Version": "2.0.0",
       "Linkedin-Version": "202607",
+      "X-RestLi-Method": "DELETE",
     },
   });
   if (res.status !== 204 && res.status !== 200) {
