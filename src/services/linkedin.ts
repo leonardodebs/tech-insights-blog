@@ -58,15 +58,16 @@ export function buildCommentary(post: Post): string {
     .join(" ");
 
   const postUrl = `${BASE_URL}/posts/${post.id}/`;
+  const cta = `📖 Análise técnica completa:\n${postUrl}`;
 
-  let commentary = [caption, hashtags, postUrl].filter(Boolean).join("\n\n");
+  let commentary = [caption, hashtags, cta].filter(Boolean).join("\n\n");
 
   if (commentary.length > MAX_COMMENTARY_LENGTH) {
     const overflow = commentary.length - MAX_COMMENTARY_LENGTH;
     let truncatedCaption = caption.slice(0, Math.max(0, caption.length - overflow - 1));
     // Evita deixar uma barra de escape solta no ponto de corte
     truncatedCaption = truncatedCaption.replace(/\\+$/, "") + "…";
-    commentary = [truncatedCaption, hashtags, postUrl].filter(Boolean).join("\n\n");
+    commentary = [truncatedCaption, hashtags, cta].filter(Boolean).join("\n\n");
   }
 
   return commentary;

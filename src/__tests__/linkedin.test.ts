@@ -69,4 +69,11 @@ describe("buildCommentary", () => {
     const post = fakePost({ linkedinCaption: undefined });
     expect(() => buildCommentary(post)).toThrow();
   });
+
+  it("inclui chamativo antes do link", () => {
+    const commentary = buildCommentary(fakePost());
+    expect(commentary).toContain("📖 Análise técnica completa:");
+    // O chamativo deve vir imediatamente antes do link, na mesma linha em bloco
+    expect(commentary).toContain("📖 Análise técnica completa:\nhttps://leonardodebs.github.io/tech-insights-blog/posts/post-test123/");
+  });
 });
