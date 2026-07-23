@@ -42,20 +42,36 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx -e "import { runAutomation } from './src/services/automation.ts'; runAutomation().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })"
 
+      - name: Post to LinkedIn
+        id: linkedin
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
+        run: npx tsx scripts/post-to-linkedin.ts
+
       - name: Notify failure via GitHub Issue
-        if: steps.generate.outcome == 'failure'
+        if: steps.generate.outcome == 'failure' || steps.linkedin.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TODAY=$(date '+%Y-%m-%d')
           EXISTING=$(gh issue list --label "ci-failure" --search "Falha na geração $TODAY" --json number --jq 'length')
           if [ "$EXISTING" -eq "0" ]; then
+            BODY="Falha detectada em $TODAY.\n\nVerifique os [logs do workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) para detalhes.\n\n"
+            if [ "${{ steps.generate.outcome }}" == "failure" ]; then
+              BODY="${BODY}❌ **Geração de post falhou.**\nPossíveis causas:\n- API do Claude sobrecarregada (529)\n- Chave ANTHROPIC_API_KEY expirada ou inválida\n- Validação de qualidade não aprovada após todas as tentativas\n\n"
+            fi
+            if [ "${{ steps.linkedin.outcome }}" == "failure" ]; then
+              BODY="${BODY}❌ **Publicação no LinkedIn falhou.**\nPossíveis causas:\n- LINKEDIN_ACCESS_TOKEN expirado (expira a cada ~60 dias, sem renovação automática — é preciso refazer a autorização OAuth manualmente)\n- Permissões do app do LinkedIn revogadas\n- Erro transitório da API do LinkedIn\n\n"
+            fi
             gh issue create \
               --title "⚠️ Falha na geração de post: $TODAY" \
-              --body "A geração automática de post falhou em $TODAY.\n\nVerifique os [logs do workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) para detalhes.\n\nPossíveis causas:\n- API do Claude sobrecarregada (529)\n- Chave ANTHROPIC_API_KEY expirada ou inválida\n- Validação de qualidade não aprovada após todas as tentativas" \
+              --body "$BODY" \
               --label "ci-failure"
           fi
-          echo "⚠️ Geração de post falhou. Issue criada no GitHub."
+          echo "⚠️ Falha detectada. Issue criada no GitHub."
 
       - name: Build Site
         env:

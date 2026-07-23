@@ -6,6 +6,8 @@ export interface Post {
   content: string;
   tags: string[];
   category: string;
+  linkedinCaption?: string;
+  linkedinHashtags?: string[];
 }
 
 export interface RSSFeed {

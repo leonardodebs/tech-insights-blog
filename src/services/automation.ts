@@ -297,9 +297,18 @@ export async function runAutomation(targetCategory?: string | null) {
               excerpt:  { type: "string", description: "Resumo de 2-3 linhas com a tese explícita" },
               category: { type: "string", enum: [forcedCategory] },
               tags:     { type: "array", items: { type: "string" }, description: "Lista de 3-5 tags técnicas" },
-              content:  { type: "string", description: "Conteúdo completo do post em markdown seguindo a estrutura obrigatória" }
+              content:  { type: "string", description: "Conteúdo completo do post em markdown seguindo a estrutura obrigatória" },
+              linkedinCaption: {
+                type: "string",
+                description: "Legenda para post no LinkedIn (perfil pessoal), baseada na mesma tese do artigo mas reescrita para o formato da rede: gancho forte nas 2 primeiras linhas (antes do 'ver mais'), parágrafos curtos com quebras de linha, SEM headers markdown, tom direto para profissionais de tecnologia. Termine com uma pergunta que convide comentário. NÃO inclua hashtags (vão em campo separado) nem o link do post (será adicionado automaticamente)."
+              },
+              linkedinHashtags: {
+                type: "array",
+                items: { type: "string" },
+                description: "3 a 5 hashtags relevantes para o post no LinkedIn, sem o símbolo #, em CamelCase quando for mais de uma palavra (ex.: [\"CloudComputing\", \"DevOps\", \"Kubernetes\"])."
+              }
             },
-            required: ["title", "excerpt", "category", "tags", "content"]
+            required: ["title", "excerpt", "category", "tags", "content", "linkedinCaption", "linkedinHashtags"]
           }
         }],
         tool_choice: { type: "tool", name: "publish_post" },
@@ -361,7 +370,9 @@ export async function runAutomation(targetCategory?: string | null) {
     excerpt: result.excerpt,
     content: result.content,
     tags: result.tags || [],
-    category: forcedCategory
+    category: forcedCategory,
+    linkedinCaption: result.linkedinCaption,
+    linkedinHashtags: result.linkedinHashtags || []
   };
 
   existingPosts.unshift(newPost);
