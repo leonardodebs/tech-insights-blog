@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validatePost, mapCategory } from "../services/automation";
+import { validatePost, mapCategory, findEmDashFields } from "../services/automation";
 
 describe("validatePost", () => {
   const validContent = `## O que está acontecendo
@@ -111,5 +111,30 @@ describe("mapCategory", () => {
   it("usa Cloud como fallback para categoria desconhecida", () => {
     expect(mapCategory("Quantum")).toBe("Cloud");
     expect(mapCategory("")).toBe("Cloud");
+  });
+});
+
+describe("findEmDashFields", () => {
+  it("não acusa nada quando não há travessão em nenhum campo", () => {
+    expect(findEmDashFields({
+      title: "Título sem travessão",
+      excerpt: "Resumo, sem travessão.",
+      content: "Conteúdo normal.",
+      linkedinCaption: "Legenda normal."
+    })).toEqual([]);
+  });
+
+  it("identifica cada campo que contém travessão", () => {
+    expect(findEmDashFields({
+      title: "Título — com travessão",
+      excerpt: "Resumo normal.",
+      content: "Conteúdo — também com travessão.",
+      linkedinCaption: "Legenda normal."
+    })).toEqual(["title", "content"]);
+  });
+
+  it("retorna vazio para result nulo ou undefined", () => {
+    expect(findEmDashFields(null)).toEqual([]);
+    expect(findEmDashFields(undefined)).toEqual([]);
   });
 });

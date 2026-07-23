@@ -124,6 +124,17 @@ export function validatePost(content: string | undefined): boolean {
   return validatePostDetailed(content).ok;
 }
 
+const EM_DASH_FIELDS = ["title", "excerpt", "content", "linkedinCaption"] as const;
+
+/** Travessão é banido em todos os campos de texto voltados ao leitor (regra de estilo). */
+export function findEmDashFields(result: Record<string, unknown> | null | undefined): string[] {
+  if (!result) return [];
+  return EM_DASH_FIELDS.filter(field => {
+    const value = result[field];
+    return typeof value === "string" && value.includes("—");
+  });
+}
+
 function stripAccents(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
@@ -188,6 +199,7 @@ Escreva o post com base APENAS nas notícias selecionadas.
 
 ⚠️ REGRAS CRÍTICAS (descumprimento = rejeição automática):
 - PROIBIDO: "está crescendo", "cada vez mais", "é importante", "vem ganhando espaço", "está revolucionando", "revolucionário", "inovadora", "líder de mercado"
+- PROIBIDO usar travessão (—) em QUALQUER campo (title, excerpt, content, linkedinCaption). Use vírgula, ponto ou reescreva a frase.
 - MÍNIMO de 1500 caracteres
 - NÃO liste notícias — integre em narrativa técnica com tese clara
 - FOCO: explique o "Como" e os "Trade-offs" reais de arquitetura
@@ -210,7 +222,7 @@ Escreva o post com base APENAS nas notícias selecionadas.
 (1 parágrafo de síntese + 1 pergunta provocativa para o leitor)
 
 ## Fontes
-(formato: [Fonte: Nome] Título — apenas as fontes efetivamente usadas no texto)`;
+(formato: [Fonte: Nome] Título. Liste apenas as fontes efetivamente usadas no texto)`;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
@@ -348,13 +360,19 @@ export async function runAutomation(targetCategory?: string | null) {
 
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
     const validation = validatePostDetailed(result?.content);
-    if (validation.ok) {
+    const emDashFields = findEmDashFields(result);
+    const reasons = [...validation.reasons];
+    if (emDashFields.length > 0) {
+      reasons.push(`Contém travessão (—) proibido nos campos: ${emDashFields.join(", ")}. Reescreva essas frases sem travessão (use vírgula, ponto ou reformule).`);
+    }
+
+    if (reasons.length === 0) {
       lastResult = result;
       break;
     } else {
-      lastRejection = validation.reasons;
+      lastRejection = reasons;
       console.warn(`⚠️ Tentativa ${attempt} reprovada:`);
-      validation.reasons.forEach(r => console.warn(`   - ${r}`));
+      reasons.forEach(r => console.warn(`   - ${r}`));
       if (attempt === maxAttempts) {
         throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após todas as tentativas.");
       }
