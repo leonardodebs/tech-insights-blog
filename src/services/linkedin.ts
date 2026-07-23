@@ -11,7 +11,7 @@ import { Post } from "../types";
 
 // Formato YYYYMM exigido pela API. Atualizar periodicamente — ver
 // https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
-const LINKEDIN_API_VERSION = "202507";
+const LINKEDIN_API_VERSION = "202607";
 const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
 
 // Limite defensivo — a API rejeita commentary excessivamente longo
