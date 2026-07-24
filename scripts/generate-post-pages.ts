@@ -50,13 +50,19 @@ function escapeHtml(text: string): string {
 }
 
 // Remove meta tags genéricas do index.html base para não duplicar com as do post
+// Remove do index.html base as tags genéricas da homepage, para não conflitar
+// com as tags específicas do post injetadas abaixo. É CRÍTICO remover o
+// canonical genérico: se ficasse, a página do post teria dois canonicals
+// (o da home + o do post), e o Google não indexaria a URL correta.
 function stripGenericMeta(html: string): string {
   return html
     .replace(/<meta\s+name="description"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:title"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:description"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:type"[^>]*>/gi, "")
-    .replace(/<meta\s+property="og:url"[^>]*>/gi, "");
+    .replace(/<meta\s+property="og:url"[^>]*>/gi, "")
+    .replace(/<meta\s+property="twitter:url"[^>]*>/gi, "")
+    .replace(/<link\s+rel="canonical"[^>]*>/gi, "");
 }
 
 // Lista de links estáticos (crawlável) para os posts mais recentes
@@ -125,6 +131,7 @@ for (const post of posts) {
   <meta property="og:url" content="${postUrl}"/>
   <meta property="og:site_name" content="Tech Insights Blog"/>
   <meta name="twitter:card" content="summary"/>
+  <meta name="twitter:url" content="${postUrl}"/>
   <meta name="twitter:title" content="${escaped.title}"/>
   <meta name="twitter:description" content="${escaped.excerpt}"/>
   <link rel="canonical" href="${postUrl}"/>
