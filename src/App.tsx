@@ -6,6 +6,7 @@ import { Post } from './types';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import DOMPurify from 'dompurify';
+import { stripLeadingTitleAndSummary } from './lib/postContent';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Search, Share2, Check, Twitter, Linkedin, Loader2 } from 'lucide-react';
 import { supabase } from './lib/supabase';
@@ -312,6 +313,11 @@ export default function App() {
               <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 dark:text-white mb-6 leading-tight">
                 {selectedPost.title}
               </h1>
+              {selectedPost.excerpt && (
+                <p className="text-lg text-zinc-600 dark:text-zinc-300 border-l-4 border-zinc-300 dark:border-zinc-700 pl-4 mb-6 leading-relaxed">
+                  {selectedPost.excerpt}
+                </p>
+              )}
               <div className="flex gap-2 flex-wrap">
                 {selectedPost.tags.map(tag => (
                   <span key={tag} className="text-[10px] text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1 rounded-full">
@@ -323,7 +329,7 @@ export default function App() {
 
             <div className="markdown-body">
               <Markdown rehypePlugins={[rehypeRaw]}>
-                {DOMPurify.sanitize(selectedPost.content || '')}
+                {DOMPurify.sanitize(stripLeadingTitleAndSummary(selectedPost.content || ''))}
               </Markdown>
             </div>
           </motion.div>

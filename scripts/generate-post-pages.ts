@@ -13,6 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { marked } from "marked";
+import { stripLeadingTitleAndSummary } from "../src/lib/postContent";
 
 const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
 const DIST_DIR = path.resolve(process.cwd(), "dist");
@@ -86,23 +87,29 @@ for (const post of posts) {
 
   const postUrl = `${BASE_URL}/posts/${post.id}/`;
 
-  // Renderiza o markdown do artigo para HTML (conteúdo confiável — gerado por nós)
-  const articleBodyHtml = marked.parse(post.content || "", { async: false }) as string;
+  // Renderiza o corpo do artigo (conteúdo confiável — gerado por nós).
+  // Remove o título e o resumo do início do content, pois são renderizados
+  // separadamente abaixo (a partir de post.title e post.excerpt) — senão
+  // apareceriam duplicados.
+  const articleBodyHtml = marked.parse(
+    stripLeadingTitleAndSummary(post.content || ""),
+    { async: false }
+  ) as string;
 
   const tagsHtml = post.tags
     .map(t => `<span class="tag">#${escapeHtml(t)}</span>`)
     .join(" ");
 
   // Conteúdo estático dentro de #root — o React substitui ao montar.
-  // O próprio markdown do post já traz "# título" (h1) e "> resumo", então
-  // não repetimos aqui — só a linha de categoria/data e as tags.
   const prerendered = `<article>
       <p class="category">${escapeHtml(post.category)} · ${new Date(post.date).toLocaleDateString("pt-BR")}</p>
+      <h1>${escapeHtml(post.title)}</h1>
+      <blockquote>${escapeHtml(post.excerpt)}</blockquote>
       ${articleBodyHtml}
       <div class="tags">${tagsHtml}</div>
     </article>
     ${relatedLinks(posts, post.id)}
-    <p><a href="${BASE_URL}/">← Voltar para a página inicial</a></p>`;
+    <p><a href="${BASE_URL}/">Voltar para a página inicial</a></p>`;
 
   let html = stripGenericMeta(baseHtml)
     .replace(
