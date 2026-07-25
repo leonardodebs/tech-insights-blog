@@ -6,9 +6,12 @@ import {
   Zap, Calendar, ArrowLeft, Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import MfaEnroll from '../components/MfaEnroll';
 
 interface AdminPanelProps {
   onLogout: () => void;
+  mfaEnrolled: boolean;
+  onMfaChange: () => void;
 }
 
 interface ActivityLog {
@@ -28,7 +31,7 @@ interface PostRow {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export default function AdminPanel({ onLogout }: AdminPanelProps) {
+export default function AdminPanel({ onLogout, mfaEnrolled, onMfaChange }: AdminPanelProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -282,6 +285,16 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
             </div>
           </motion.div>
         </div>
+
+        {/* Segurança / MFA */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mt-8"
+        >
+          <MfaEnroll enrolled={mfaEnrolled} onChange={onMfaChange} />
+        </motion.div>
 
         {/* Manage Posts Section */}
         <motion.div
