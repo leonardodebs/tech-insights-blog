@@ -33,6 +33,23 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run tests
+        # Roda ANTES da geração do post: se algo na nossa lógica quebrou
+        # (validação, saneamento de markdown, formatação do LinkedIn), falha
+        # rápido, sem gastar a chamada da API do Claude nem tentar publicar
+        # no LinkedIn com código potencialmente quebrado. Bloqueia o deploy
+        # como um todo — diferente do npm audit abaixo, isto testa nossa
+        # própria lógica, não dependências de terceiros.
+        run: npm test
+
+      - name: Audit dependencies (report only)
+        # Não bloqueia: este workflow publica sozinho todo dia. Uma CVE nova
+        # numa dependência de dev não deve impedir o post de sair.
+        continue-on-error: true
+        run: |
+          echo "## 🔍 npm audit (dependências de produção)" >> "$GITHUB_STEP_SUMMARY"
+          npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+
       - name: Generate AI Post
         id: generate
         continue-on-error: true

@@ -13,10 +13,6 @@ import { supabase } from './lib/supabase';
 
 const PAGE_SIZE = 12;
 
-declare global {
-  interface Window { __INITIAL_POST_ID__?: string; }
-}
-
 export default function App() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +56,9 @@ export default function App() {
     });
   }, [selectedCategory, fetchPosts]);
 
-  // Open post from SSG path or query param
+  // Open post from SSG path (data-post-id no #root, injetado pelo build) ou query param
   useEffect(() => {
-    const initialId = window.__INITIAL_POST_ID__;
+    const initialId = document.getElementById('root')?.dataset.postId;
     const queryId = new URLSearchParams(window.location.search).get('post');
     const postId = initialId || queryId;
     if (!postId) return;

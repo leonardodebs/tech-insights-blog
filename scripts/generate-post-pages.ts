@@ -138,10 +138,12 @@ for (const post of posts) {
   <meta name="twitter:title" content="${escaped.title}"/>
   <meta name="twitter:description" content="${escaped.excerpt}"/>
   <link rel="canonical" href="${postUrl}"/>
-  <script>window.__INITIAL_POST_ID__ = "${post.id}";</script>
 </head>`
     )
-    .replace('<div id="root"></div>', `<div id="root">${prerendered}</div>`);
+    // data-post-id em vez de <script>window.__INITIAL_POST_ID__=...</script>:
+    // evita script inline por página, o que permite uma CSP restritiva
+    // (script-src 'self', sem 'unsafe-inline' nem hash por página).
+    .replace('<div id="root"></div>', `<div id="root" data-post-id="${escapeAttr(post.id)}">${prerendered}</div>`);
 
   fs.writeFileSync(path.join(postDir, "index.html"), html, "utf-8");
   generated++;

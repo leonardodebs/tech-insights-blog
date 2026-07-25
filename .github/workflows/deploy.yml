@@ -30,6 +30,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run tests
+        run: npm test
+
+      - name: Audit dependencies (report only)
+        # Não bloqueia o deploy: uma CVE nova numa dependência de dev (que
+        # nem chega ao navegador, como vitest/esbuild) travaria a publicação
+        # sem motivo real. Reporta no resumo do run para visibilidade; a
+        # decisão de agir fica com quem revisa. --omit=dev foca no que
+        # realmente é servido ao visitante.
+        continue-on-error: true
+        run: |
+          echo "## 🔍 npm audit (dependências de produção)" >> "$GITHUB_STEP_SUMMARY"
+          npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+
       - name: Build Site
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

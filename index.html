@@ -35,19 +35,37 @@
       consentimento — violação da base legal exigida pela LGPD (art. 7º, I).
 
       Agora o script só é injetado após aceite explícito, em
-      src/components/CookieConsent.tsx. O bloco abaixo apenas declara o estado
-      inicial de consentimento como negado, sem fazer nenhuma requisição de rede.
+      src/components/CookieConsent.tsx. O arquivo abaixo (public/consent-default.js)
+      apenas declara o estado inicial de consentimento como negado, sem fazer
+      nenhuma requisição de rede. É um arquivo externo, não inline, para que a
+      CSP abaixo não precise de 'unsafe-inline' em script-src.
     -->
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('consent', 'default', {
-        analytics_storage: 'denied',
-        ad_storage: 'denied',
-        ad_user_data: 'denied',
-        ad_personalization: 'denied'
-      });
-    </script>
+    <script src="%BASE_URL%consent-default.js"></script>
+
+    <!--
+      Content-Security-Policy via <meta> — mitigação PARCIAL, não substitui um
+      cabeçalho HTTP real. Limitações conhecidas (documentadas na auditoria):
+        - frame-ancestors é ignorado pelo navegador quando entregue por <meta>;
+          esta CSP não protege contra clickjacking. Isso continua exigindo um
+          cabeçalho real (X-Frame-Options), que GitHub Pages não permite servir.
+        - report-uri/report-to e sandbox também não têm efeito via <meta>.
+      Todo domínio abaixo corresponde a uma origem de fato usada pelo site
+      (conferido em index.html, CookieConsent.tsx e lib/supabase.ts).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' https://www.googletagmanager.com;
+        style-src 'self' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' data:;
+        connect-src 'self' https://*.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com;
+        base-uri 'self';
+        form-action 'self';
+        object-src 'none';
+      "
+    />
   </head>
   <body>
     <div id="root"></div>

@@ -17,6 +17,18 @@
   }
 }
 
+/*
+  Movido de style={{...}} inline em AdminLogin.tsx para permitir uma CSP
+  restritiva (style-src 'self', sem 'unsafe-inline'). O padrão é fixo, não
+  depende de props/estado, então uma classe estática resolve sem perda.
+*/
+.admin-grid-pattern {
+  background-image:
+    linear-gradient(rgba(52, 211, 153, 1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52, 211, 153, 1) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
 .markdown-body {
   @apply prose prose-zinc dark:prose-invert max-w-none;
 }
