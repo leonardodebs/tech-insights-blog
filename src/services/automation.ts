@@ -147,6 +147,46 @@ export function findEmDashFields(result: Record<string, unknown> | null | undefi
   });
 }
 
+/**
+ * Remove travessão de um texto substituindo pela pontuação adequada ao contexto.
+ * O Claude Haiku reincide no travessão em certos temas mesmo com a instrução
+ * explícita de não usar. Em vez de rejeitar o post inteiro (o que já travou uma
+ * geração diária), corrigimos automaticamente antes de validar — o resultado
+ * respeita a regra de estilo e o conteúdo não se perde.
+ *
+ * Trata também travessões "grudados" sem espaço (a—b) e o travessão médio (–).
+ */
+export function stripEmDash(text: string): string {
+  return text
+    // 1) travessão no início de linha (fala/lista) → remove. Vem antes das
+    //    outras regras para não ter a quebra de linha consumida por elas.
+    //    [ \t]* (não \s) para não atravessar o \n.
+    .replace(/^[ \t]*[—–][ \t]*/gm, "")
+    // 2) " — " no meio de frase → vírgula (aposto/inciso). Só espaço horizontal,
+    //    para nunca colar duas linhas em uma.
+    .replace(/[ \t]+[—–][ \t]+/g, ", ")
+    // 3) travessão colado entre palavras (sem espaço) → vírgula com espaço
+    .replace(/(\p{L})[—–](\p{L})/gu, "$1, $2")
+    // 4) qualquer travessão remanescente (ex.: antes de pontuação) → vírgula
+    .replace(/[—–]/g, ",")
+    // 5) higiene: vírgula duplicada, espaço antes de vírgula, vírgula antes de
+    //    pontuação final.
+    .replace(/,[ \t]*,/g, ",")
+    .replace(/[ \t]+,/g, ",")
+    .replace(/,([ \t]*[.!?])/g, "$1");
+}
+
+/** Aplica stripEmDash a todos os campos de texto do resultado, retornando cópia limpa. */
+function sanitizeEmDash(result: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = { ...result };
+  for (const field of EM_DASH_FIELDS) {
+    if (typeof cleaned[field] === "string") {
+      cleaned[field] = stripEmDash(cleaned[field] as string);
+    }
+  }
+  return cleaned;
+}
+
 function stripAccents(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
@@ -373,13 +413,18 @@ export async function runAutomation(targetCategory?: string | null) {
       continue;
     }
 
+    // Corrige o travessão automaticamente em vez de reprovar o post por causa
+    // dele. O modelo reincide no travessão em certos temas mesmo instruído a não
+    // usar; rejeitar por isso já travou uma geração diária inteira. A regra de
+    // estilo continua garantida — o travessão some do resultado final.
+    if (findEmDashFields(result).length > 0) {
+      console.log(`✂️ Travessão detectado, sanitizando automaticamente...`);
+      result = sanitizeEmDash(result);
+    }
+
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
     const validation = validatePostDetailed(result?.content);
-    const emDashFields = findEmDashFields(result);
     const reasons = [...validation.reasons];
-    if (emDashFields.length > 0) {
-      reasons.push(`Contém travessão (—) proibido nos campos: ${emDashFields.join(", ")}. Reescreva essas frases sem travessão (use vírgula, ponto ou reformule).`);
-    }
 
     if (reasons.length === 0) {
       lastResult = result;

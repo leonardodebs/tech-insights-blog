@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validatePost, mapCategory, findEmDashFields } from "../services/automation";
+import { validatePost, mapCategory, findEmDashFields, stripEmDash } from "../services/automation";
 
 describe("validatePost", () => {
   const validContent = `## O que está acontecendo
@@ -164,5 +164,44 @@ describe("findEmDashFields", () => {
   it("retorna vazio para result nulo ou undefined", () => {
     expect(findEmDashFields(null)).toEqual([]);
     expect(findEmDashFields(undefined)).toEqual([]);
+  });
+});
+
+describe("stripEmDash", () => {
+  it("substitui ' — ' no meio de frase por vírgula", () => {
+    expect(stripEmDash("A latência caiu — em produção — pela metade."))
+      .toBe("A latência caiu, em produção, pela metade.");
+  });
+
+  it("substitui travessão colado entre palavras por vírgula com espaço", () => {
+    expect(stripEmDash("custo—benefício")).toBe("custo, benefício");
+  });
+
+  it("remove travessão no início de linha (fala/lista)", () => {
+    expect(stripEmDash("— Primeiro ponto\n— Segundo ponto"))
+      .toBe("Primeiro ponto\nSegundo ponto");
+  });
+
+  it("trata o travessão médio (en dash) também", () => {
+    expect(stripEmDash("Arquiteto – DevOps – MLOps")).toBe("Arquiteto, DevOps, MLOps");
+  });
+
+  it("não deixa vírgula solta antes de pontuação final", () => {
+    // "palavra —." não deve virar "palavra ,."
+    expect(stripEmDash("Isso resolve o problema —.")).toBe("Isso resolve o problema.");
+  });
+
+  it("não gera vírgulas duplicadas", () => {
+    expect(stripEmDash("a — , b")).not.toContain(", ,");
+  });
+
+  it("o resultado nunca contém travessão", () => {
+    const entrada = "Título — com — vários—travessões – de – tipos.";
+    expect(stripEmDash(entrada)).not.toMatch(/[—–]/);
+  });
+
+  it("preserva texto que já está sem travessão", () => {
+    const limpo = "Texto normal, com vírgulas e pontos. Nada a mudar.";
+    expect(stripEmDash(limpo)).toBe(limpo);
   });
 });
