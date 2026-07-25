@@ -6,7 +6,6 @@ import {
   Zap, Calendar, ArrowLeft, Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import postsData from '../data/posts.json';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -19,6 +18,13 @@ interface ActivityLog {
   time: Date;
 }
 
+interface PostRow {
+  id: string;
+  title: string;
+  date: string;
+  category: string;
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -26,16 +32,32 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [activity, setActivity] = useState<ActivityLog[]>([]);
-  const [stats, setStats] = useState({
-    totalPosts: postsData.length,
-    lastPostDate: postsData[0]?.date ? new Date(postsData[0].date).toLocaleDateString('pt-BR') : 'Nenhum',
-    categories: [...new Set(postsData.map((p: { category: string }) => p.category))].length,
-  });
+  const [posts, setPosts] = useState<PostRow[]>([]);
+  const [stats, setStats] = useState({ totalPosts: 0, lastPostDate: 'Carregando…', categories: 0 });
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user?.email) setUserEmail(user.email);
     });
+  }, []);
+
+  // Busca os posts REAIS do Supabase, em vez do posts.json congelado no build.
+  // Antes, importar o JSON inteiro embutia ~856 KB no bundle do admin E mostrava
+  // uma cópia desatualizada (a do último deploy, não a base de dados atual).
+  useEffect(() => {
+    supabase
+      .from('posts')
+      .select('id, title, date, category')
+      .order('date', { ascending: false })
+      .then(({ data }) => {
+        const rows = (data as PostRow[]) ?? [];
+        setPosts(rows);
+        setStats({
+          totalPosts: rows.length,
+          lastPostDate: rows[0]?.date ? new Date(rows[0].date).toLocaleDateString('pt-BR') : 'Nenhum',
+          categories: new Set(rows.map(p => p.category)).size,
+        });
+      });
   }, []);
 
   const addLog = (message: string, type: 'success' | 'error' | 'info') => {
@@ -274,7 +296,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
           </div>
 
           <div className="divide-y divide-zinc-800 max-h-[500px] overflow-y-auto custom-scrollbar">
-            {postsData.map((post: any) => (
+            {posts.map((post) => (
               <div key={post.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
                 <div className="flex flex-col gap-1 pr-4 min-w-0">
                   <h3 className="text-sm font-medium text-zinc-200 truncate">{post.title}</h3>
