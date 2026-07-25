@@ -27,14 +27,26 @@
     <meta property="twitter:description" content="Curadoria semanal automatizada sobre Cloud, Linux, IA, Segurança, DevOps e Startups." />
     <meta property="twitter:image" content="https://picsum.photos/seed/tech/1200/630" />
 
-    <!-- Google tag (gtag.js) GA4 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P1VHS3GBKC"></script>
+    <!--
+      Google Analytics NÃO é carregado aqui.
+
+      Antes, o gtag.js era injetado incondicionalmente neste <head>, gravando
+      cookies e entregando o IP do visitante ao Google antes de qualquer
+      consentimento — violação da base legal exigida pela LGPD (art. 7º, I).
+
+      Agora o script só é injetado após aceite explícito, em
+      src/components/CookieConsent.tsx. O bloco abaixo apenas declara o estado
+      inicial de consentimento como negado, sem fazer nenhuma requisição de rede.
+    -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-
-      gtag('config', 'G-P1VHS3GBKC');
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      });
     </script>
   </head>
   <body>
