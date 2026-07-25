@@ -49,14 +49,30 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+/**
+ * Serializa um objeto como bloco <script type="application/ld+json">.
+ * Escapa "<" para <: sem isso, um "</script>" dentro de qualquer string
+ * (título, excerpt) encerraria o bloco prematuramente e quebraria a página.
+ * type="application/ld+json" é dado, não script executável, então não é
+ * afetado por script-src da CSP.
+ */
+function jsonLdScript(data: Record<string, unknown>): string {
+  const json = JSON.stringify(data).replace(/</g, "\\u003c");
+  return `<script type="application/ld+json">${json}</script>`;
+}
+
 // Remove meta tags genéricas do index.html base para não duplicar com as do post
 // Remove do index.html base as tags genéricas da homepage, para não conflitar
 // com as tags específicas do post injetadas abaixo. É CRÍTICO remover o
 // canonical genérico: se ficasse, a página do post teria dois canonicals
 // (o da home + o do post), e o Google não indexaria a URL correta.
+const OG_IMAGE = `${BASE_URL}/og/default.png`;
+
 function stripGenericMeta(html: string): string {
   return html
     .replace(/<meta\s+name="description"[^>]*>/gi, "")
+    .replace(/<meta\s+property="og:image"[^>]*>/gi, "")
+    .replace(/<meta\s+property="twitter:image"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:title"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:description"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:type"[^>]*>/gi, "")
@@ -96,6 +112,24 @@ for (const post of posts) {
 
   const postUrl = `${BASE_URL}/posts/${post.id}/`;
 
+  // Dados estruturados BlogPosting (achado 08.2): dá ao Google autor, data,
+  // seção e headline de forma estruturada, elegível a rich results.
+  const blogPostingLd = jsonLdScript({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": post.title,
+    "description": post.excerpt,
+    "datePublished": post.date,
+    "dateModified": post.date,
+    "author": { "@type": "Person", "name": "Leonardo Pereira Debs" },
+    "publisher": { "@type": "Organization", "name": "TechPulse AI" },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": postUrl },
+    "url": postUrl,
+    "articleSection": post.category,
+    "keywords": post.tags.join(", "),
+    "inLanguage": "pt-BR",
+  });
+
   // Renderiza o corpo do artigo (conteúdo confiável — gerado por nós).
   // Remove o título e o resumo do início do content, pois são renderizados
   // separadamente abaixo (a partir de post.title e post.excerpt) — senão
@@ -133,11 +167,14 @@ for (const post of posts) {
   <meta property="og:description" content="${escaped.excerpt}"/>
   <meta property="og:url" content="${postUrl}"/>
   <meta property="og:site_name" content="Tech Insights Blog"/>
-  <meta name="twitter:card" content="summary"/>
+  <meta property="og:image" content="${OG_IMAGE}"/>
+  <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:url" content="${postUrl}"/>
   <meta name="twitter:title" content="${escaped.title}"/>
   <meta name="twitter:description" content="${escaped.excerpt}"/>
+  <meta name="twitter:image" content="${OG_IMAGE}"/>
   <link rel="canonical" href="${postUrl}"/>
+  ${blogPostingLd}
 </head>`
     )
     // data-post-id em vez de <script>window.__INITIAL_POST_ID__=...</script>:
@@ -157,7 +194,22 @@ const homepageLinks = `<nav aria-label="Todos os posts">
         ${posts.map(p => `<li><a href="${BASE_URL}/posts/${p.id}/">${escapeHtml(p.title)}</a></li>`).join("\n        ")}
       </ul>
     </nav>`;
-const homepageHtml = baseHtml.replace('<div id="root"></div>', `<div id="root">${homepageLinks}</div>`);
+
+// Dados estruturados WebSite na home, com SearchAction apontando para a busca
+// interna (?post=... não é busca; usamos a home como destino de pesquisa geral).
+const websiteLd = jsonLdScript({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "TechPulse AI",
+  "url": `${BASE_URL}/`,
+  "description": "Análises técnicas automatizadas sobre Cloud, Observability, AI, Security, DevOps, Startups e Open Source.",
+  "inLanguage": "pt-BR",
+  "publisher": { "@type": "Organization", "name": "TechPulse AI" },
+});
+
+const homepageHtml = baseHtml
+  .replace("</head>", `  ${websiteLd}\n</head>`)
+  .replace('<div id="root"></div>', `<div id="root">${homepageLinks}</div>`);
 fs.writeFileSync(path.join(DIST_DIR, "index.html"), homepageHtml, "utf-8");
 
 console.log(`✅ ${generated} páginas de post pré-renderizadas em dist/posts/`);
