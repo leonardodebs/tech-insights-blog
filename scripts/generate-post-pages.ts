@@ -61,7 +61,10 @@ function stripGenericMeta(html: string): string {
     .replace(/<meta\s+property="og:description"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:type"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:url"[^>]*>/gi, "")
-    .replace(/<meta\s+property="twitter:url"[^>]*>/gi, "")
+    // O index.html declara as tags do Twitter com property=, enquanto as tags
+    // por post abaixo usam name=. Sem remover as genéricas, cada página de post
+    // servia DOIS twitter:card e DOIS twitter:title contraditórios.
+    .replace(/<meta\s+(?:property|name)="twitter:(?:url|card|title|description|image)"[^>]*>/gi, "")
     .replace(/<link\s+rel="canonical"[^>]*>/gi, "");
 }
 

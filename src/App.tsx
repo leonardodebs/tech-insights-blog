@@ -5,7 +5,7 @@ import Toast, { ToastType } from './components/Toast';
 import { Post } from './types';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import DOMPurify from 'dompurify';
+import rehypeSanitize from 'rehype-sanitize';
 import { stripLeadingTitleAndSummary } from './lib/postContent';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Search, Share2, Check, Twitter, Linkedin, Loader2 } from 'lucide-react';
@@ -328,8 +328,16 @@ export default function App() {
             </div>
 
             <div className="markdown-body">
-              <Markdown rehypePlugins={[rehypeRaw]}>
-                {DOMPurify.sanitize(stripLeadingTitleAndSummary(selectedPost.content || ''))}
+              {/*
+                Ordem dos plugins é a segurança aqui: rehypeRaw converte o HTML
+                bruto do markdown em nós do AST, e rehypeSanitize sanea esse AST
+                logo depois. Sanear ANTES da conversão (ex.: DOMPurify sobre a
+                string markdown) inverte o pipeline e deixa passar construções
+                criadas pela própria conversão. O conteúdo vem do Supabase, ou
+                seja, fonte remota: tratar como não confiável.
+              */}
+              <Markdown rehypePlugins={[rehypeRaw, rehypeSanitize]}>
+                {stripLeadingTitleAndSummary(selectedPost.content || '')}
               </Markdown>
             </div>
           </motion.div>
