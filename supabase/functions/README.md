@@ -4,28 +4,42 @@ Código das funções serverless do projeto, agora sob controle de versão (acha
 
 ## Correção que estas funções implementam
 
-O achado crítico **05.1** era ausência de autorização: as funções validavam apenas que o JWT era válido (autenticação) e tratavam **qualquer usuário autenticado como administrador**. Com o cadastro público habilitado no projeto, qualquer pessoa podia se registrar e operar o painel.
+O achado **05.1** da auditoria apontou ausência de autorização: o portão do painel no cliente verifica apenas *existência de sessão*, sem checagem de papel. Com o cadastro público habilitado e a confirmação de e-mail desativada, qualquer pessoa podia se registrar e **ver a interface administrativa**.
 
-O módulo `_shared/guard.ts` corrige isso com dois critérios de autorização e política **fail closed**: se a allowlist não estiver configurada e o usuário não tiver o papel de admin, o acesso é negado.
+**Revisão do achado (24/07/2026):** a existência do secret `ADMIN_EMAILS` desde 18/03/2026 indica que as funções anteriormente deployadas **provavelmente já implementavam alguma allowlist**. Como o código não estava versionado, isso não era verificável — a auditoria classificou corretamente a autorização do backend como *"não verificável"*, não como comprovadamente ausente. O que estava **confirmado** era a exposição da interface no cliente.
+
+O ganho real deste versionamento, portanto, é menos "criar a autorização" e mais:
+
+- Tornar a lógica de autorização **explícita e auditável**, com histórico e revisão
+- Garantir política **fail closed** (configuração ausente nega acesso, nunca libera)
+- Restringir **CORS** a uma origem única em vez de `*`
+- Validar o formato de `postId` antes de repassá-lo ao workflow, que o consome em shell/jq
+- Impor **limite de taxa** no disparo que gera custo na API Anthropic
 
 | Função | O que protege |
 |---|---|
 | `manage-posts` | Exclusão de post. Recebe `postId` do cliente, então valida o formato antes de repassar ao workflow (defesa contra injeção de argumento) |
 | `trigger-blog-post` | Geração manual de post. Abuso gera custo direto na API Anthropic, por isso tem limite de taxa por admin |
 
-## ⚠️ Antes de fazer deploy: confirmar os nomes dos secrets
+## Secrets
 
-Estas funções foram escritas a partir da interface observada no cliente, porque **o código anterior não estava no repositório**. Antes de publicar, confirme no dashboard (*Edge Functions → Secrets*) como os secrets existentes se chamam e ajuste se necessário:
+Confirmados no dashboard do projeto em 24/07/2026:
 
-| Variável esperada | Uso | Observação |
+| Variável | Uso | Estado |
 |---|---|---|
-| `GITHUB_TOKEN` | PAT com escopo `actions:write` para disparar workflows | **Verifique o nome real.** Pode estar como `GH_PAT`, `GH_TOKEN` etc. Se diferir, renomeie o secret ou ajuste `guard.ts` |
-| `ADMIN_EMAILS` | Allowlist de admins, separada por vírgula | **Novo.** Precisa ser criado: `leonardodebs@gmail.com` |
-| `GITHUB_REPO` | Opcional. Padrão: `leonardodebs/tech-insights-blog` | |
-| `GITHUB_REF` | Opcional. Padrão: `main` | |
+| `GITHUB_PAT` | PAT com escopo `actions:write` para disparar workflows | ✅ Já existe (18/03/2026) |
+| `ADMIN_EMAILS` | Allowlist de admins, separada por vírgula | ✅ Já existe (18/03/2026) — confirmar o valor |
+| `GITHUB_REPO` | Opcional. Padrão: `leonardodebs/tech-insights-blog` | — |
+| `GITHUB_REF` | Opcional. Padrão: `main` | — |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Injetados automaticamente pela plataforma | Não criar manualmente |
 
-> Se `ADMIN_EMAILS` não for configurado e o usuário não tiver `app_metadata.role = "admin"`, **todo acesso é negado** — inclusive o seu. Isso é intencional: configuração ausente nunca deve liberar acesso.
+O `guard.ts` lê `GITHUB_PAT` e mantém fallback para `GITHUB_TOKEN`, para não quebrar caso o secret seja renomeado no futuro.
+
+> **Política fail closed:** se `ADMIN_EMAILS` estiver vazio ou não contiver seu e-mail, e sua conta não tiver `app_metadata.role = "admin"`, **todo acesso é negado — inclusive o seu**. Isso é intencional: configuração ausente nunca deve liberar acesso. Como o valor de um secret não é legível de volta (só o digest SHA-256), reescreva-o para ter certeza do conteúdo:
+>
+> ```bash
+> npx supabase secrets set ADMIN_EMAILS="leonardodebs@gmail.com"
+> ```
 
 ## Deploy
 
@@ -34,13 +48,15 @@ Estas funções foram escritas a partir da interface observada no cliente, porqu
 npx supabase login
 npx supabase link --project-ref vxjcsahpwdxdqqwwwyph
 
-# criar a allowlist de admin
+# reescrever a allowlist para garantir o conteúdo (o valor não é legível de volta)
 npx supabase secrets set ADMIN_EMAILS="leonardodebs@gmail.com"
 
 # publicar
 npx supabase functions deploy manage-posts
 npx supabase functions deploy trigger-blog-post
 ```
+
+> Estas funções **substituem** as versões atualmente deployadas. Como o código anterior não está disponível para comparação, teste o painel após o deploy (gerar post e excluir um post de teste) para confirmar que o comportamento se manteve.
 
 ## Opção mais robusta: papel em `app_metadata`
 

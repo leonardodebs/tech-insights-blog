@@ -108,12 +108,14 @@ export async function dispatchWorkflow(
   workflowFile: string,
   inputs: Record<string, string> = {},
 ): Promise<{ ok: true } | { ok: false; status: number; detail: string }> {
-  const token = Deno.env.get("GITHUB_TOKEN");
+  // O secret configurado no projeto chama-se GITHUB_PAT. O fallback para
+  // GITHUB_TOKEN existe para não quebrar caso o secret seja renomeado.
+  const token = Deno.env.get("GITHUB_PAT") ?? Deno.env.get("GITHUB_TOKEN");
   const repo = Deno.env.get("GITHUB_REPO") ?? "leonardodebs/tech-insights-blog";
   const ref = Deno.env.get("GITHUB_REF") ?? "main";
 
   if (!token) {
-    console.error("GITHUB_TOKEN ausente no ambiente da função.");
+    console.error("GITHUB_PAT (ou GITHUB_TOKEN) ausente no ambiente da função.");
     return { ok: false, status: 500, detail: "Erro de configuração do servidor." };
   }
 
