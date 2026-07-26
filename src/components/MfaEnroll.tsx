@@ -30,12 +30,26 @@ export default function MfaEnroll({ enrolled, onChange }: MfaEnrollProps) {
     setError('');
     setBusy(true);
     try {
+      // Limpa fatores TOTP não verificados de tentativas anteriores. Um enroll
+      // que trava/expira deixa um fator "pendente" na conta, e o Supabase
+      // recusa um novo enroll enquanto ele existir ("factor already exists").
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const pendentes = (factors?.all ?? []).filter(
+        (f) => f.factor_type === 'totp' && f.status !== 'verified'
+      );
+      for (const f of pendentes) {
+        await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+
       const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
       if (err || !data) {
-        setError('Não foi possível iniciar o cadastro do fator.');
+        // Mostra o motivo real do Supabase em vez de mensagem genérica.
+        setError(err?.message ? `Falha ao iniciar: ${err.message}` : 'Não foi possível iniciar o cadastro do fator.');
         return;
       }
       setEnroll({ factorId: data.id, qrSvg: data.totp.qr_code, secret: data.totp.secret });
+    } catch (e) {
+      setError(e instanceof Error ? `Erro: ${e.message}` : 'Erro inesperado ao cadastrar o fator.');
     } finally {
       setBusy(false);
     }
