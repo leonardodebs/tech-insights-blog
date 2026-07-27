@@ -78,6 +78,16 @@ export default function MfaEnroll({ enrolled, onChange }: MfaEnrollProps) {
       setEnroll(null);
       setCode('');
       onChange();
+    } catch (e) {
+      // Sem este catch, uma requisição bloqueada por extensão do navegador
+      // (ERR_BLOCKED_BY_CLIENT) ou queda de rede fazia o botão parar de girar
+      // sem explicar nada — falha silenciosa. Agora o motivo aparece.
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(
+        /fetch|network|load failed|blocked/i.test(msg)
+          ? 'A requisição foi bloqueada (extensão do navegador/antivírus?) ou a rede caiu. Tente numa janela anônima ou libere o site no bloqueador.'
+          : `Erro ao verificar: ${msg}`
+      );
     } finally {
       setBusy(false);
     }

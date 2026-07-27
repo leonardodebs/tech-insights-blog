@@ -35,7 +35,13 @@ export default function AdminPage() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // Local scope: encerra a sessão sem depender de request ao servidor, que
+    // pode travar/ser bloqueado. try/catch garante que a UI volta ao login.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      /* limpa a UI de qualquer forma */
+    }
     setSession(null);
   };
 

@@ -108,7 +108,16 @@ export default function AdminPanel({ onLogout, mfaEnrolled, onMfaChange }: Admin
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // scope: 'local' encerra a sessão apenas neste navegador, sem chamada de
+    // rede — o signOut padrão (global) faz um request para revogar a sessão no
+    // servidor, e se esse request trava ou é bloqueado por extensão/antivírus
+    // o await nunca resolve e o botão "Sair" não faz nada. O try/catch garante
+    // que a UI sempre limpa, mesmo se algo falhar.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      /* limpa a UI de qualquer forma */
+    }
     onLogout();
   };
 
