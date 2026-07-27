@@ -63,7 +63,10 @@ export default function MfaEnroll({ enrolled, onChange }: MfaEnrollProps) {
     try {
       const { data: ch, error: cErr } = await supabase.auth.mfa.challenge({ factorId: enroll.factorId });
       if (cErr || !ch) {
-        setError('Falha ao iniciar a verificação.');
+        // Mostra o erro real do Supabase (status + código + mensagem) em vez de
+        // texto genérico, para diagnosticar sem depender do DevTools.
+        const detail = cErr ? `${cErr.status ?? ''} ${cErr.code ?? ''} ${cErr.message}`.trim() : 'sem resposta';
+        setError(`Falha no challenge: ${detail}`);
         return;
       }
       const { error: vErr } = await supabase.auth.mfa.verify({
@@ -72,7 +75,8 @@ export default function MfaEnroll({ enrolled, onChange }: MfaEnrollProps) {
         code: code.trim(),
       });
       if (vErr) {
-        setError('Código incorreto ou expirado. Tente o próximo código do app.');
+        const detail = `${vErr.status ?? ''} ${vErr.code ?? ''} ${vErr.message}`.trim();
+        setError(`Falha no verify: ${detail}`);
         return;
       }
       setEnroll(null);
