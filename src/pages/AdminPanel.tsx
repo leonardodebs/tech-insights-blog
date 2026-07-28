@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import MfaEnroll from '../components/MfaEnroll';
+import ChangePassword from '../components/ChangePassword';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -295,14 +296,15 @@ export default function AdminPanel({ onLogout, mfaEnrolled, onMfaChange }: Admin
           </motion.div>
         </div>
 
-        {/* Segurança / MFA */}
+        {/* Segurança: MFA + troca de senha */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="mt-8"
+          className="mt-8 space-y-4"
         >
           <MfaEnroll enrolled={mfaEnrolled} onChange={onMfaChange} />
+          <ChangePassword />
         </motion.div>
 
         {/* Manage Posts Section */}
