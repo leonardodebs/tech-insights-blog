@@ -30,7 +30,7 @@ export default function Privacidade() {
           <Shield className="w-6 h-6 text-emerald-500" />
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Política de Privacidade</h1>
         </div>
-        <p className="text-sm text-zinc-500 mb-10">Última atualização: 24 de julho de 2026</p>
+        <p className="text-sm text-zinc-500 mb-10">Última atualização: 28 de julho de 2026</p>
 
         <div className="prose prose-zinc dark:prose-invert max-w-none prose-headings:font-bold prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-li:text-zinc-700 dark:prose-li:text-zinc-300">
           <h2>1. Quem é o controlador</h2>
@@ -105,9 +105,16 @@ export default function Privacidade() {
 
           <h2>6. Por quanto tempo</h2>
           <p>
-            As métricas do Google Analytics são retidas pelo período configurado na plataforma
-            (máximo de 14 meses) e depois descartadas automaticamente. Não há base de dados
-            pessoais mantida por este site.
+            As métricas do Google Analytics são retidas pelos seguintes prazos, após os quais os
+            dados são descartados automaticamente pela plataforma:
+          </p>
+          <ul>
+            <li><strong>Dados de evento</strong> (registro granular de cada interação): 2 meses;</li>
+            <li><strong>Dados de usuário</strong> (identificador pseudonimizado do visitante): 14 meses.</li>
+          </ul>
+          <p>
+            Adotamos o menor prazo disponível para os dados de evento, em linha com o princípio da
+            minimização. Não há base de dados pessoais mantida por este site.
           </p>
 
           <h2>7. Seus direitos</h2>
