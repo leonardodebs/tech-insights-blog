@@ -36,7 +36,19 @@ export default function ChangePassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password: pw1 });
       if (error) {
-        setMsg({ kind: 'err', text: `Falha ao trocar a senha: ${error.message}` });
+        // Traduz os motivos mais comuns de 422 do Supabase para PT.
+        const raw = error.message.toLowerCase();
+        let amigavel: string;
+        if (/different|same/.test(raw)) {
+          amigavel = 'A nova senha precisa ser diferente da atual.';
+        } else if (/weak|pwned|leaked|breach|compromis/.test(raw)) {
+          amigavel = 'Essa senha é fraca ou já apareceu em vazamentos conhecidos. Escolha outra.';
+        } else if (/length|characters|short/.test(raw)) {
+          amigavel = 'A senha não atende ao tamanho mínimo exigido pelo projeto.';
+        } else {
+          amigavel = `Falha ao trocar a senha: ${error.message}`;
+        }
+        setMsg({ kind: 'err', text: amigavel });
         return;
       }
       setPw1('');
