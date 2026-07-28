@@ -2,7 +2,15 @@ name: "AI Blog - Generate Daily Post"
 
 on:
   schedule:
-    - cron: '0 21 * * *' # Todos os dias às 21:00 UTC (18:00 Brasília)
+    # Alvo: publicar às 18:00 de Brasília (21:00 UTC, fuso fixo UTC-3).
+    #
+    # O agendador do GitHub Actions nao e pontual: ele enfileira o job e a
+    # espera piora no minuto :00, quando todo mundo agenda. Medicao deste
+    # repositorio em 6 dias seguidos: cron '0 4' atrasava 128-172 min e
+    # cron '0 21' atrasa 59-70 min (media ~65). O horario abaixo sai do topo
+    # da hora e desconta esse atraso medido, mirando a execucao real em
+    # 21:00 UTC. Se o atraso mudar, reajuste este valor, nao o alvo.
+    - cron: '55 19 * * *' # 19:55 UTC + ~65 min de fila = ~21:00 UTC = 18:00 BRT
   workflow_dispatch:
 
 permissions:
