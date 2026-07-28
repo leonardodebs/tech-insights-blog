@@ -34,7 +34,27 @@ export default function ChangePassword() {
 
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: pw1 });
+      // O updateUser às vezes recebe o 200 do servidor (senha já trocada) mas a
+      // promise interna não resolve, deixando o botão girando pra sempre. Um
+      // timeout corta essa espera: se estourar, o request quase certamente foi
+      // aceito, então orientamos a confirmar entrando com a senha nova.
+      const TIMEOUT_MS = 12000;
+      const result = await Promise.race([
+        supabase.auth.updateUser({ password: pw1 }),
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), TIMEOUT_MS)),
+      ]);
+
+      if (result === 'timeout') {
+        setPw1('');
+        setPw2('');
+        setMsg({
+          kind: 'ok',
+          text: 'A senha provavelmente foi alterada, mas a confirmação demorou. Clique em "Sair" e entre com a senha nova para conferir.',
+        });
+        return;
+      }
+
+      const { error } = result;
       if (error) {
         // Traduz os motivos mais comuns de 422 do Supabase para PT.
         const raw = error.message.toLowerCase();
