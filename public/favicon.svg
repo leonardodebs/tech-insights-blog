@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="TechPulse AI">
+  <!--
+    Favicon da marca: mesmo desenho do logo do cabecalho (src/components/Layout.tsx),
+    um quadrado emerald-500 arredondado com o glifo de terminal do lucide em zinc-950.
+    Traco engrossado para 3 (o lucide usa 2) porque a 16px o traco original
+    desaparece. Tile solido de proposito: le bem tanto na aba clara quanto na escura,
+    sem precisar de variante por tema.
+  -->
+  <rect width="24" height="24" rx="6" fill="#10b981"/>
+  <g fill="none" stroke="#09090b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="4 17 10 11 4 5"/>
+    <line x1="12" y1="19" x2="20" y2="19"/>
+  </g>
+</svg>
