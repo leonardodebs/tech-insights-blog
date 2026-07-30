@@ -73,12 +73,19 @@ export default function App() {
       });
   }, []);
 
-  // Sync URL with selected post
+  // Sync URL with selected post, para compartilhar o link direto do artigo.
+  //
+  // Precisa incluir o base do Vite (/tech-insights-blog/). Sem ele, o pushState
+  // reescrevia o endereco para a raiz nua do dominio na home, e para
+  // /posts/... sem prefixo ao abrir um post. Na pratica isso jogava a barra de
+  // endereco para leonardodebs.github.io/ (que e 404), fazia favoritos salvarem
+  // o link errado e quebrava o refresh. BASE_URL ja termina em barra.
   useEffect(() => {
+    const base = import.meta.env.BASE_URL;
     if (selectedPost) {
-      window.history.pushState({}, '', `/posts/${selectedPost.id}/`);
+      window.history.pushState({}, '', `${base}posts/${selectedPost.id}/`);
     } else {
-      window.history.pushState({}, '', '/');
+      window.history.pushState({}, '', base);
     }
   }, [selectedPost]);
 
