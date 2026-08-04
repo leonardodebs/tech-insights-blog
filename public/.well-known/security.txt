@@ -1,0 +1,11 @@
+# security.txt — canal de contato para relato de vulnerabilidades (RFC 9116).
+#
+# Limitacao conhecida (B-09): o local canonico e a raiz do dominio
+# (/.well-known/security.txt), fora de alcance num site de projeto do GitHub
+# Pages, que serve sob /tech-insights-blog/. Este arquivo fica no subcaminho do
+# blog; a raiz exigiria o repositorio de usuario leonardodebs.github.io.
+
+Contact: mailto:leonardodebs@gmail.com
+Expires: 2027-08-04T00:00:00.000Z
+Preferred-Languages: pt-BR, en
+Canonical: https://leonardodebs.github.io/tech-insights-blog/.well-known/security.txt
