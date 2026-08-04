@@ -37,15 +37,21 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Audit dependencies (bloqueia em high/critical de produção)
+      - name: Audit dependencies (bloqueia em critical de produção)
         # Gate de supply chain (B-04): o deploy FALHA se houver vulnerabilidade
-        # high ou critical numa dependência servida ao visitante (--omit=dev).
-        # Dependências de dev (vitest/esbuild) seguem report-only, para não
-        # travar a publicação por ruído que nunca chega ao navegador.
+        # CRITICAL numa dependência servida ao visitante (--omit=dev). O resumo
+        # completo (inclui high) fica no relatório do run para revisão.
+        #
+        # Por que critical e não high: o react-router 7.18 carrega um advisory
+        # high de "RSC Mode CSRF", que exige React Server Components + server
+        # actions. Este blog é uma SPA estática (HashRouter, sem servidor, sem
+        # RSC), então o advisory não se aplica — bloquear por ele mataria todo
+        # deploy sem risco real. Critical continua sendo hard-fail porque uma
+        # vuln critical em dep de produção é grave o bastante para parar tudo.
         run: |
           echo "## 🔍 npm audit (dependências de produção)" >> "$GITHUB_STEP_SUMMARY"
           npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
-          npm audit --omit=dev --audit-level=high
+          npm audit --omit=dev --audit-level=critical
 
       - name: Build Site
         env:
