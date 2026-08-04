@@ -34,6 +34,14 @@ jobs:
           ACTION: ${{ github.event.inputs.action }}
           POST_ID: ${{ github.event.inputs.postId }}
         run: |
+          # Valida o formato do ID no proprio workflow (B-03). Mesmo com a edge
+          # function ja validando, o disparo manual pela UI do GitHub aceita
+          # input arbitrario; esta guarda impede que valor malicioso chegue ao
+          # jq ou ao git. IDs sao gerados como post-<epoch>.
+          if ! echo "$POST_ID" | grep -Eq '^post-[0-9]{10,20}$'; then
+            echo "POST_ID invalido: '$POST_ID'. Esperado ^post-[0-9]{10,20}$" >&2
+            exit 1
+          fi
           if [ "$ACTION" == "delete" ]; then
             echo "Deleting post with ID: $POST_ID"
             jq --arg id "$POST_ID" 'del(.[] | select(.id == $id))' src/data/posts.json > temp.json
@@ -47,7 +55,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run tests
         run: npm test
@@ -59,11 +67,17 @@ jobs:
         run: npm run build
 
       - name: Commit and Push Changes
+        env:
+          # Passa o ID por env, NUNCA interpolado direto no shell (B-03). Antes,
+          # ${{ github.event.inputs.postId }} ia cru para dentro do git commit -m,
+          # permitindo injecao de comando. Aqui o shell trata $POST_ID como valor,
+          # e o padrao ja foi validado na etapa acima.
+          POST_ID: ${{ github.event.inputs.postId }}
         run: |
           git config --global user.name "AI Bot"
           git config --global user.email "bot@github.com"
           git add src/data/posts.json
-          git commit -m "Admin: Removed post ${{ github.event.inputs.postId }} [skip ci]" || echo "Nothing to commit"
+          git commit -m "Admin: Removed post ${POST_ID} [skip ci]" || echo "Nothing to commit"
           git push origin main
 
       - name: Setup Pages

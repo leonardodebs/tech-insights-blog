@@ -166,7 +166,7 @@ O `linkedin.ts` monta o post e publica via `POST /rest/posts`. A legenda passa p
 | Lucide React | 0.546 | Ícones |
 | Supabase JS | 2 | Autenticação e banco de dados |
 | date-fns | 4 | Formatação de datas |
-| DOMPurify | 3 | Sanitização de HTML |
+| rehype-sanitize | 6 | Sanitização de HTML (SPA e SSG) |
 
 ### Backend / Automação
 | Tecnologia | Versão | Uso |

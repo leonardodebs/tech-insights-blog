@@ -28,21 +28,24 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # npm ci (não npm install): instala exatamente o package-lock.json,
+        # de forma determinística, e falha se o lock estiver fora de sincronia
+        # com o package.json (B-04). npm install poderia resolver versões novas
+        # dentro dos ranges ^ e mudar o build silenciosamente.
+        run: npm ci
 
       - name: Run tests
         run: npm test
 
-      - name: Audit dependencies (report only)
-        # Não bloqueia o deploy: uma CVE nova numa dependência de dev (que
-        # nem chega ao navegador, como vitest/esbuild) travaria a publicação
-        # sem motivo real. Reporta no resumo do run para visibilidade; a
-        # decisão de agir fica com quem revisa. --omit=dev foca no que
-        # realmente é servido ao visitante.
-        continue-on-error: true
+      - name: Audit dependencies (bloqueia em high/critical de produção)
+        # Gate de supply chain (B-04): o deploy FALHA se houver vulnerabilidade
+        # high ou critical numa dependência servida ao visitante (--omit=dev).
+        # Dependências de dev (vitest/esbuild) seguem report-only, para não
+        # travar a publicação por ruído que nunca chega ao navegador.
         run: |
           echo "## 🔍 npm audit (dependências de produção)" >> "$GITHUB_STEP_SUMMARY"
           npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          npm audit --omit=dev --audit-level=high
 
       - name: Build Site
         env:

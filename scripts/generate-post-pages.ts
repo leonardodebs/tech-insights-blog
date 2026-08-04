@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 import { marked } from "marked";
 import { stripLeadingTitleAndSummary } from "../src/lib/postContent";
+import { sanitizeHtml } from "../src/lib/sanitizeHtml";
 
 const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
 const DIST_DIR = path.resolve(process.cwd(), "dist");
@@ -130,14 +131,16 @@ for (const post of posts) {
     "inLanguage": "pt-BR",
   });
 
-  // Renderiza o corpo do artigo (conteúdo confiável — gerado por nós).
-  // Remove o título e o resumo do início do content, pois são renderizados
-  // separadamente abaixo (a partir de post.title e post.excerpt) — senão
-  // apareceriam duplicados.
-  const articleBodyHtml = marked.parse(
+  // Renderiza o corpo do artigo. O conteúdo nasce de fontes externas (RSS)
+  // processadas pelo Claude, então NÃO é confiável: sanitizamos o HTML com o
+  // mesmo rehype-sanitize do SPA (B-02). Remove o título e o resumo do início
+  // do content, pois são renderizados separadamente abaixo (a partir de
+  // post.title e post.excerpt) — senão apareceriam duplicados.
+  const rawBodyHtml = marked.parse(
     stripLeadingTitleAndSummary(post.content || ""),
     { async: false }
   ) as string;
+  const articleBodyHtml = sanitizeHtml(rawBodyHtml);
 
   const tagsHtml = post.tags
     .map(t => `<span class="tag">#${escapeHtml(t)}</span>`)

@@ -6,12 +6,17 @@ Este documento define os padrões de segurança obrigatórios para todos os proj
 
 ### Client-Side (Frontend)
 - **Regra:** Nunca renderizar conteúdo dinâmico ou vindo de fontes externas (APIs, Markdown, User Input) sem sanitização.
-- **Ferramenta Padrão:** `dompurify`.
-- **Implementação:**
+- **Ferramenta Padrão:** `rehype-sanitize` (o mesmo pipeline no SPA e no SSG).
+- **Implementação (SPA, react-markdown):**
   ```tsx
-  import DOMPurify from 'dompurify';
-  const cleanHTML = DOMPurify.sanitize(dirtyContent);
+  import rehypeRaw from 'rehype-raw';
+  import rehypeSanitize from 'rehype-sanitize';
+  // A ordem importa: rehypeRaw converte o HTML bruto em AST, rehypeSanitize sanea.
+  <Markdown rehypePlugins={[rehypeRaw, rehypeSanitize]}>{content}</Markdown>
   ```
+- **Implementação (SSG, HTML já em string):** usar `sanitizeHtml()` de
+  `src/lib/sanitizeHtml.ts`, que aplica o mesmo `rehype-sanitize` sobre a saída
+  do `marked` antes de injetar no HTML estático.
 
 ### Server-Side (SSR/Injection)
 - **Regra:** Todo dado injetado diretamente no HTML (Meta Tags, Títulos, JSON inicial) deve ser encodado para evitar quebra de tags.

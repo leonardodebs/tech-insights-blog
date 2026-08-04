@@ -1,0 +1,22 @@
+# Configuração do projeto Supabase, versionada de propósito.
+#
+# Causa raiz do B-01: a manage-posts rodou por meses em produção com verify_jwt
+# desligado e código antigo, porque a configuração das functions só existia no
+# painel, nunca no repositório. Sem fonte de verdade versionada, um deploy podia
+# (e ficou) divergindo do código auditado sem ninguém perceber.
+#
+# Com este arquivo, `supabase functions deploy` aplica o verify_jwt abaixo, e
+# qualquer divergência vira um diff revisável.
+
+project_id = "vxjcsahpwdxdqqwwwyph"
+
+# Exclusão de post: o gateway exige um JWT válido ANTES de a função rodar
+# (defesa em profundidade), e o próprio código ainda faz requireAdmin.
+[functions.manage-posts]
+verify_jwt = true
+
+# Geração de post: chamada por integração que não envia JWT de usuário; a função
+# faz autenticação própria no código (checa o header e responde 401). Por isso o
+# gateway fica com verify_jwt = false — a guarda vive no corpo da função.
+[functions.trigger-blog-post]
+verify_jwt = false

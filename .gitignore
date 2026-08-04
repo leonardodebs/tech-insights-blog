@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Config local do Claude Code (caminhos da maquina, permissoes de MCP)
+.claude/settings.json
+.claude/settings.local.json

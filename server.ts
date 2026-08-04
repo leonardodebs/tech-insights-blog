@@ -34,6 +34,20 @@ async function startServer() {
 
   // API Route to trigger automation (for testing in preview)
   app.post("/api/trigger-automation", async (req, res) => {
+    // Guarda fail-closed (B-05). Este endpoint dispara a geração de post, que
+    // usa SUPABASE_SERVICE_ROLE_KEY e ANTHROPIC_API_KEY. Sem auth, quem
+    // alcançasse o servidor geraria posts e queimaria a cota da Anthropic.
+    // O servidor é só de desenvolvimento (npm run dev), mas a guarda garante
+    // que, mesmo se algum dia for publicado, o endpoint não fique aberto:
+    // exige um token que só existe na máquina local; se não configurado, NEGA.
+    const expected = process.env.LOCAL_AUTOMATION_TOKEN;
+    if (!expected || req.get("x-automation-token") !== expected) {
+      return res.status(401).json({
+        success: false,
+        error: "Não autorizado. Defina LOCAL_AUTOMATION_TOKEN e envie o header x-automation-token.",
+      });
+    }
+
     const ip = req.ip || req.headers['x-forwarded-for'] as string || 'anonymous';
     const lastTrigger = automationRateLimit.get(ip);
     

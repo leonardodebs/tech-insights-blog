@@ -39,7 +39,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # npm ci: instalação determinística a partir do lockfile (B-04). O audit
+        # segue report-only abaixo de propósito: este workflow publica sozinho
+        # todo dia e não deve ser bloqueado por uma CVE nova numa dependência.
+        run: npm ci
 
       - name: Run tests
         # Roda ANTES da geração do post: se algo na nossa lógica quebrou
