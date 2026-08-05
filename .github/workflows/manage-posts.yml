@@ -87,6 +87,9 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: './dist'
+          # Sem isso o artefato exclui dotfiles (.nojekyll, .well-known/), que
+          # davam 404 em produção mesmo com o build local correto.
+          include-hidden-files: true
 
       - name: Deploy to GitHub Pages
         id: deployment
