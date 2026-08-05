@@ -66,11 +66,6 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: './dist'
-          # Sem isso a action empacota o tar excluindo arquivos/pastas ocultos
-          # (dotfiles). Foi por isso que .nojekyll e .well-known/security.txt
-          # davam 404 em produção mesmo com o build local correto: o artefato
-          # publicado simplesmente não os continha.
-          include-hidden-files: true
 
   deploy:
     environment:
