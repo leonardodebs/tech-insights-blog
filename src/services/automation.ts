@@ -108,8 +108,39 @@ export interface ValidationResult {
   reasons: string[];
 }
 
-/** Valida o post e explica cada reprovação, para realimentar o modelo no retry. */
-export function validatePostDetailed(content: string | undefined): ValidationResult {
+/** Normaliza uma URL para comparação: ignora protocolo, "www.", barra final e query. */
+function normalizeUrl(url: string): string {
+  return url
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
+
+/** Extrai as URLs citadas na seção "## Fontes". */
+export function extractSourceUrls(content: string): string[] {
+  const sourcesMatch = content.match(/##\s*Fontes[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (!sourcesMatch) return [];
+  return [...sourcesMatch[1].matchAll(/\]\((https?:\/\/[^\s)]+)\)/g)].map((m) => m[1]);
+}
+
+/**
+ * Valida o post e explica cada reprovação, para realimentar o modelo no retry.
+ *
+ * `allowedUrls` são as URLs efetivamente fornecidas no contexto (feeds do dia).
+ * Quando informadas, qualquer URL citada em "## Fontes" que não esteja na lista
+ * é reprovada. Isso fecha uma falha real: em 07/08/2026 o modelo publicou como
+ * fonte uma URL do padrão antigo do blog do Rust (inside-rust/2024/...) que
+ * ele reconstruiu de memória em vez de copiar a do contexto. A URL dava 404, e
+ * a validação antiga aprovava porque só checava o FORMATO do link markdown,
+ * nunca a procedência.
+ */
+export function validatePostDetailed(
+  content: string | undefined,
+  allowedUrls?: string[],
+): ValidationResult {
   const reasons: string[] = [];
   if (!content) return { ok: false, reasons: ["Conteúdo vazio."] };
 
@@ -146,13 +177,28 @@ export function validatePostDetailed(content: string | undefined): ValidationRes
     if (sourceLines.length > 0 && unlinkedLines.length > 0) {
       reasons.push(`As fontes precisam ser links markdown reais no formato [Fonte: Nome] [Título](URL), usando a URL fornecida no contexto. Linhas sem link: ${unlinkedLines.length}.`);
     }
+
+    // Procedência: toda URL citada precisa ter vindo do contexto, nunca da
+    // memória do modelo. URL inventada costuma dar 404 e engana o leitor.
+    if (allowedUrls && allowedUrls.length > 0) {
+      const permitidas = new Set(allowedUrls.map(normalizeUrl));
+      const inventadas = extractSourceUrls(content).filter(
+        (u) => !permitidas.has(normalizeUrl(u)),
+      );
+      if (inventadas.length > 0) {
+        reasons.push(
+          `URL(s) de fonte que NÃO estavam no contexto fornecido: ${inventadas.join(", ")}. ` +
+          `Copie a URL exatamente como aparece em "(URL: ...)" na notícia. Nunca escreva uma URL de memória.`,
+        );
+      }
+    }
   }
 
   return { ok: reasons.length === 0, reasons };
 }
 
-export function validatePost(content: string | undefined): boolean {
-  return validatePostDetailed(content).ok;
+export function validatePost(content: string | undefined, allowedUrls?: string[]): boolean {
+  return validatePostDetailed(content, allowedUrls).ok;
 }
 
 const EM_DASH_FIELDS = ["title", "excerpt", "content", "linkedinCaption"] as const;
@@ -305,7 +351,11 @@ Escreva o post com base APENAS nas notícias selecionadas.
 (1 parágrafo de síntese + 1 pergunta provocativa para o leitor)
 
 ## Fontes
-(formato OBRIGATÓRIO: link markdown real — [Fonte: Nome] [Título](URL). Use exatamente a URL fornecida entre "(URL: ...)" de cada notícia no contexto, copiada sem alterar. NUNCA invente ou deixe uma fonte sem link. Liste apenas as fontes efetivamente usadas no texto)`;
+(formato OBRIGATÓRIO: link markdown real, [Fonte: Nome] [Título](URL).
+
+⛔ REGRA ABSOLUTA DE URL: copie a URL por COPIAR E COLAR do trecho "(URL: ...)" da notícia no contexto, caractere por caractere. É PROIBIDO escrever uma URL de memória, adivinhar o padrão de link do site, ou "corrigir" o formato. Você NÃO conhece as URLs deste site: a única fonte válida é o texto do contexto. URL que não estiver no contexto é reprovação automática, porque costuma apontar para página inexistente (404) e engana o leitor.
+
+Liste apenas as fontes efetivamente usadas no texto)`;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
@@ -339,6 +389,9 @@ export async function runAutomation(targetCategory?: string | null) {
   const categoryFeeds = FEEDS_BY_CATEGORY[forcedCategory] || [];
   const allFeedsToFetch = [...categoryFeeds, ...GENERAL_FEEDS];
   const newsItems: string[] = [];
+  // URLs realmente fornecidas no contexto. A validação usa esta lista para
+  // reprovar fonte inventada pelo modelo (ver validatePostDetailed).
+  const contextUrls: string[] = [];
 
   // Feeds que falham são registrados no log em vez de ignorados em silêncio.
   // O `catch` vazio anterior foi o que permitiu feeds apodrecerem por anos sem
@@ -351,6 +404,7 @@ export async function runAutomation(targetCategory?: string | null) {
       const feed = await parser.parseURL(url);
       feed.items.slice(0, 4).forEach(item => {
         const link = item.link || "";
+        if (link) contextUrls.push(link);
         newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""} (URL: ${link})`);
       });
     } catch (e) {
@@ -485,7 +539,11 @@ export async function runAutomation(targetCategory?: string | null) {
     }
 
     console.log(`🛡️ Validando Qualidade da Tentativa ${attempt}...`);
-    const validation = validatePostDetailed(result?.content);
+    // Passa TODAS as URLs coletadas dos feeds, não apenas as 12 que entraram no
+    // prompt: o contexto é truncado em 5500 chars e uma URL pode chegar cortada.
+    // Validar contra o conjunto maior pega a invenção real (URL que não existe
+    // em feed nenhum) sem reprovar por engano uma URL legítima.
+    const validation = validatePostDetailed(result?.content, contextUrls);
     const reasons = [...validation.reasons];
 
     if (reasons.length === 0) {

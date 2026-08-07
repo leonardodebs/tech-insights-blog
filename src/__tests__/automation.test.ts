@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validatePost, mapCategory, findEmDashFields, stripEmDash, pickTargetCategory } from "../services/automation";
+import { validatePost, validatePostDetailed, mapCategory, findEmDashFields, stripEmDash, pickTargetCategory, extractSourceUrls } from "../services/automation";
 
 describe("validatePost", () => {
   const validContent = `## O que está acontecendo
@@ -139,6 +139,53 @@ describe("mapCategory", () => {
   it("usa Cloud como fallback para categoria desconhecida", () => {
     expect(mapCategory("Quantum")).toBe("Cloud");
     expect(mapCategory("")).toBe("Cloud");
+  });
+});
+
+describe("procedência das URLs de fonte", () => {
+  // Caso real de 07/08/2026: o modelo publicou como fonte uma URL do padrão
+  // antigo do blog do Rust, reconstruída de memória. Dava 404, e a validação
+  // aprovava porque só checava o formato do link markdown.
+  const URL_REAL = "https://blog.rust-lang.org/2026/07/13/crates-io-development-update/";
+  const URL_INVENTADA = "https://blog.rust-lang.org/inside-rust/2024/07/09/crates-io-development-update.html";
+
+  const comFonte = (url: string) => `## Insights e Riscos
+Análise técnica sobre kubernetes, cloud e supply chain com profundidade suficiente
+para passar o mínimo de caracteres exigido pela validação do post gerado.
+${"Detalhe técnico relevante sobre auditoria de dependências e infraestrutura. ".repeat(20)}
+
+## Conclusão direta
+Síntese do trade-off analisado no artigo de hoje.
+Sua equipe audita o conteúdo real das dependências antes do deploy?
+
+## Fontes
+[Fonte: Rust Blog] [crates.io: development update](${url})`;
+
+  it("aprova URL que veio do contexto", () => {
+    expect(validatePost(comFonte(URL_REAL), [URL_REAL])).toBe(true);
+  });
+
+  it("REPROVA URL que não estava no contexto (inventada)", () => {
+    expect(validatePost(comFonte(URL_INVENTADA), [URL_REAL])).toBe(false);
+  });
+
+  it("explica no motivo qual URL foi inventada", () => {
+    const r = validatePostDetailed(comFonte(URL_INVENTADA), [URL_REAL]);
+    expect(r.reasons.join(" ")).toContain(URL_INVENTADA);
+  });
+
+  it("ignora diferenças de barra final, www e query na comparação", () => {
+    const semBarra = "https://blog.rust-lang.org/2026/07/13/crates-io-development-update";
+    expect(validatePost(comFonte(semBarra), [URL_REAL])).toBe(true);
+    expect(validatePost(comFonte(URL_REAL + "?utm_source=rss"), [URL_REAL])).toBe(true);
+  });
+
+  it("sem allowedUrls, mantém o comportamento anterior (não reprova)", () => {
+    expect(validatePost(comFonte(URL_INVENTADA))).toBe(true);
+  });
+
+  it("extractSourceUrls pega só as URLs da seção Fontes", () => {
+    expect(extractSourceUrls(comFonte(URL_REAL))).toEqual([URL_REAL]);
   });
 });
 
