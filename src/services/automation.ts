@@ -17,44 +17,63 @@ const POSTS_PATH = path.resolve(process.cwd(), "src/data/posts.json");
 const ALL_CATEGORIES = ["Cloud", "Observability", "AI", "Security", "DevOps", "Startups", "Open Source"] as const;
 type Category = typeof ALL_CATEGORIES[number];
 
-// Feeds organizados por categoria para garantir cobertura balanceada
+// Feeds organizados por categoria para garantir cobertura balanceada.
+//
+// Auditoria de 07/08/2026: vários feeds estavam mortos ou congelados, e isso era
+// a causa REAL dos posts repetidos. Em DevOps, 2 dos 3 feeds eram inúteis
+// (devops.com dava 403, infoq/devops parado há 4 anos), sobrando só o
+// kubernetes.io: com uma única fonte viva, a automação repetiu "Gateway API
+// v1.6" por 4 dias. Observability tinha 2 de 4 mortos (grafana 404, devops 403).
+//
+// Removidos: devops.com (403), grafana.com/blog/rss.xml (404, virou index.xml),
+// cloud.google.com/blog/rss.xml (XML inválido), infoq/devops (parado 1554d),
+// opensource.com (parado 1158d), venturebeat/ai (parado 80d).
+// Todos os substitutos abaixo foram testados: HTTP 200 e publicação recente.
+// Mínimo de 4 fontes por categoria, para nunca depender de uma só.
 const FEEDS_BY_CATEGORY: Record<Category, string[]> = {
   Cloud: [
     "https://aws.amazon.com/blogs/aws/feed/",
     "https://azure.microsoft.com/en-us/blog/feed/",
-    "https://cloud.google.com/blog/rss.xml",
+    "https://cloudblog.withgoogle.com/rss/",
+    "https://aws.amazon.com/blogs/architecture/feed/",
     "https://www.infoq.com/feed/cloud-computing/",
   ],
   AI: [
     "https://openai.com/news/rss.xml",
-    "https://venturebeat.com/category/ai/feed/",
+    "https://huggingface.co/blog/feed.xml",
     "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
+    "https://simonwillison.net/atom/everything/",
     "https://arstechnica.com/information-technology/feed/",
   ],
   Security: [
     "https://www.bleepingcomputer.com/feed/",
     "https://www.darkreading.com/rss.xml",
     "https://krebsonsecurity.com/feed/",
+    "https://openssf.org/feed/",
   ],
   DevOps: [
     "https://kubernetes.io/feed.xml",
-    "https://devops.com/feed/",
-    "https://www.infoq.com/feed/devops/",
+    "https://www.docker.com/blog/feed/",
+    "https://about.gitlab.com/atom.xml",
+    "https://www.hashicorp.com/blog/feed.xml",
+    "https://blog.cloudflare.com/rss/",
   ],
   Observability: [
-    "https://grafana.com/blog/rss.xml",
+    "https://grafana.com/blog/index.xml",
     "https://opentelemetry.io/blog/index.xml",
     "https://www.cncf.io/blog/feed/",
-    "https://devops.com/feed/",
+    "https://prometheus.io/blog/feed.xml",
   ],
   Startups: [
     "https://techcrunch.com/category/startups/feed/",
     "https://www.wired.com/category/business/feed/",
     "https://tecnoblog.net/feed/",
+    "https://netflixtechblog.com/feed",
   ],
   "Open Source": [
     "https://github.blog/feed/",
-    "https://opensource.com/feed",
+    "https://lwn.net/headlines/rss",
+    "https://blog.rust-lang.org/feed.xml",
     "https://www.linux.com/feed/",
     "https://www.cncf.io/blog/feed/",
   ],
@@ -321,6 +340,12 @@ export async function runAutomation(targetCategory?: string | null) {
   const allFeedsToFetch = [...categoryFeeds, ...GENERAL_FEEDS];
   const newsItems: string[] = [];
 
+  // Feeds que falham são registrados no log em vez de ignorados em silêncio.
+  // O `catch` vazio anterior foi o que permitiu feeds apodrecerem por anos sem
+  // ninguém notar (devops.com com 403, infoq parado há 4 anos), degradando a
+  // variedade de temas até a automação repetir o mesmo assunto.
+  const deadFeeds: string[] = [];
+
   for (const url of allFeedsToFetch) {
     try {
       const feed = await parser.parseURL(url);
@@ -328,7 +353,26 @@ export async function runAutomation(targetCategory?: string | null) {
         const link = item.link || "";
         newsItems.push(`- [Fonte: ${feed.title}] ${item.title}: ${item.contentSnippet || ""} (URL: ${link})`);
       });
-    } catch (e) { /* skip */ }
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : String(e);
+      deadFeeds.push(`${url} (${motivo})`);
+    }
+  }
+
+  if (deadFeeds.length > 0) {
+    console.warn(`⚠️ ${deadFeeds.length} feed(s) falharam:`);
+    deadFeeds.forEach((f) => console.warn(`   - ${f}`));
+  }
+
+  // Alerta alto quando sobram poucas fontes vivas na categoria: é o sinal de que
+  // a variedade de temas vai cair e os posts começam a repetir assunto.
+  const liveCategoryFeeds = categoryFeeds.length -
+    deadFeeds.filter((f) => categoryFeeds.some((c) => f.startsWith(c))).length;
+  if (liveCategoryFeeds < 2) {
+    console.warn(
+      `🚨 Apenas ${liveCategoryFeeds} feed(s) vivo(s) em ${forcedCategory}. ` +
+      `Risco alto de repetir tema: revise FEEDS_BY_CATEGORY.`,
+    );
   }
 
   // Garante que notícias dos feeds da categoria aparecem no contexto. Embaralha
