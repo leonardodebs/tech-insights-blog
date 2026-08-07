@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validatePost, mapCategory, findEmDashFields, stripEmDash } from "../services/automation";
+import { validatePost, mapCategory, findEmDashFields, stripEmDash, pickTargetCategory } from "../services/automation";
 
 describe("validatePost", () => {
   const validContent = `## O que está acontecendo
@@ -139,6 +139,42 @@ describe("mapCategory", () => {
   it("usa Cloud como fallback para categoria desconhecida", () => {
     expect(mapCategory("Quantum")).toBe("Cloud");
     expect(mapCategory("")).toBe("Cloud");
+  });
+});
+
+describe("pickTargetCategory", () => {
+  // Helper: monta posts falsos só com a categoria, do mais recente para o mais antigo.
+  const mk = (cats: string[]) => cats.map((category, i) => ({
+    id: `p${i}`, title: "", excerpt: "", content: "", date: "", category, tags: [],
+  })) as any[];
+
+  it("nunca repete a categoria do post mais recente", () => {
+    const posts = mk(["DevOps", "Cloud", "AI", "Security", "Startups"]);
+    for (let i = 0; i < 50; i++) {
+      expect(pickTargetCategory(posts)).not.toBe("DevOps");
+    }
+  });
+
+  it("nunca repete nenhuma das 2 categorias mais recentes (quebra sequências)", () => {
+    // Cenário real do bug: dois DevOps seguidos não podem gerar um terceiro.
+    const posts = mk(["DevOps", "DevOps", "Cloud", "AI", "Security", "Startups", "Observability"]);
+    for (let i = 0; i < 50; i++) {
+      expect(pickTargetCategory(posts)).not.toBe("DevOps");
+    }
+  });
+
+  it("prefere a categoria menos usada entre as candidatas", () => {
+    // Open Source é a mais rara; as 2 recentes (DevOps, Cloud) estão bloqueadas.
+    const posts = mk([
+      "DevOps", "Cloud", "AI", "AI", "Security", "Security",
+      "Startups", "Startups", "Observability", "Observability", "AI",
+    ]);
+    expect(pickTargetCategory(posts)).toBe("Open Source");
+  });
+
+  it("não quebra quando há menos de 2 posts", () => {
+    expect(() => pickTargetCategory(mk(["DevOps"]))).not.toThrow();
+    expect(() => pickTargetCategory(mk([]))).not.toThrow();
   });
 });
 

@@ -205,16 +205,28 @@ export function mapCategory(raw: string): Category {
   return "Cloud";
 }
 
-// Retorna a categoria menos representada nos últimos N posts
-function pickTargetCategory(posts: Post[], windowSize = 21): Category {
+// Retorna a categoria menos representada nos últimos N posts, mas nunca uma das
+// categorias dos 2 posts mais recentes.
+//
+// Só balancear pela contagem produzia SEQUÊNCIAS: uma categoria em déficit (ex.:
+// DevOps zerado) era escolhida vários dias seguidos até empatar, gerando 4 posts
+// do mesmo tema em fila. Excluir as 2 últimas categorias quebra a sequência sem
+// abrir mão do balanceamento de longo prazo.
+export function pickTargetCategory(posts: Post[], windowSize = 21): Category {
   const recent = posts.slice(0, windowSize);
   const counts: Record<string, number> = {};
   for (const cat of ALL_CATEGORIES) counts[cat] = 0;
   for (const p of recent) {
     if (counts[p.category] !== undefined) counts[p.category]++;
   }
-  // Ordena por menor contagem, desempata aleatoriamente
-  const sorted = [...ALL_CATEGORIES].sort((a, b) => {
+
+  // Categorias dos 2 posts mais recentes ficam de fora dos candidatos.
+  const blocked = new Set(posts.slice(0, 2).map((p) => p.category));
+  let candidates = ALL_CATEGORIES.filter((c) => !blocked.has(c));
+  if (candidates.length === 0) candidates = [...ALL_CATEGORIES];
+
+  // Entre os candidatos, menor contagem primeiro; empate resolvido no aleatório.
+  const sorted = candidates.sort((a, b) => {
     const diff = counts[a] - counts[b];
     return diff !== 0 ? diff : Math.random() - 0.5;
   });
@@ -298,9 +310,10 @@ export async function runAutomation(targetCategory?: string | null) {
 
   console.log(`🎯 Categoria alvo: ${forcedCategory}`);
 
-  // Deduplication: últimos 10 posts
+  // Deduplication: últimos 10 posts, com as tags para o modelo enxergar o
+  // produto/tecnologia central (não só o título) e evitar repetir o assunto.
   const recentPostsSummary = existingPosts.slice(0, 10).map(p =>
-    `- "${p.title}" [${p.category}]`
+    `- "${p.title}" [${p.category}] — temas: ${(p.tags || []).slice(0, 4).join(", ")}`
   ).join("\n");
 
   // Busca notícias: prioriza feeds da categoria alvo + feeds gerais
@@ -318,14 +331,19 @@ export async function runAutomation(targetCategory?: string | null) {
     } catch (e) { /* skip */ }
   }
 
-  // Garante que notícias dos feeds da categoria aparecem no contexto
-  const categoryNews = newsItems.slice(0, categoryFeeds.length * 4);
+  // Garante que notícias dos feeds da categoria aparecem no contexto. Embaralha
+  // as da categoria também: sem isso, a matéria dominante de um feed (ex.: um
+  // release em alta no Kubernetes) ficava sempre no topo e era escolhida todo
+  // dia, gerando posts repetidos. Embaralhar dá variedade dia a dia.
+  const categoryNews = newsItems
+    .slice(0, categoryFeeds.length * 4)
+    .sort(() => Math.random() - 0.5);
   const generalNews = newsItems.slice(categoryFeeds.length * 4);
   const shuffledGeneral = generalNews.sort(() => Math.random() - 0.5).slice(0, 4);
   const context = [...categoryNews, ...shuffledGeneral].slice(0, 12).join("\n");
 
   const deduplicationHint = recentPostsSummary
-    ? `\n\n⚠️ POSTS RECENTES (EVITE REPETIR TESE OU ÂNGULO):\n${recentPostsSummary}\n`
+    ? `\n\n⚠️ POSTS RECENTES — NÃO escreva sobre o mesmo produto, release, ferramenta ou tecnologia central destes. Escolha um assunto claramente diferente:\n${recentPostsSummary}\n\nSe as notícias abaixo forem dominadas por um assunto já coberto acima (ex.: o mesmo release ou produto), IGNORE essas notícias e escolha outra menos óbvia do contexto. Repetir o produto/release central de um post recente é reprovação automática.\n`
     : "";
 
   // Limite maior que antes (era 4000) para acomodar as URLs de cada notícia
