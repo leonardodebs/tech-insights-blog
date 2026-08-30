@@ -13,3 +13,6 @@ coverage/
 
 # venv do gerador do relatorio de auditoria
 docs/security-audit/.venv/
+
+# cache do gerador do relatorio
+docs/security-audit/__pycache__/

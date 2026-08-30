@@ -43,6 +43,27 @@ export interface AuthorizedAdmin {
 }
 
 /**
+ * Lê a claim `aal` do JWT do chamador (aal1 = só senha, aal2 = segundo fator
+ * cumprido nesta sessão).
+ *
+ * Decodificar sem verificar assinatura é seguro AQUI porque esta função só é
+ * chamada depois de `getUser()`, que valida o token contra o servidor de auth.
+ * O payload é base64url e pode vir sem o padding `=`, que precisa ser reposto
+ * antes do atob.
+ */
+function lerAalDoJwt(authHeader: string): string | null {
+  try {
+    const payload = authHeader.slice("Bearer ".length).split(".")[1];
+    if (!payload) return null;
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const comPadding = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    return (JSON.parse(atob(comPadding)) as { aal?: string }).aal ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Verifica o JWT e confirma que o usuário é administrador.
  *
  * Dois critérios aceitos, em ordem de robustez:
@@ -95,6 +116,27 @@ export async function requireAdmin(
     // Log para auditoria; resposta ao cliente permanece genérica.
     console.warn(`Acesso negado para usuário ${user.id} (${email || "sem e-mail"}).`);
     return { error: jsonResponse({ error: "Acesso negado." }, 403) };
+  }
+
+  // Segundo fator (achado A-01). O gate de MFA vivia só no cliente: AdminPage
+  // bloqueia a interface em aal1, mas a API aceitava qualquer JWT válido de
+  // admin. Quem tivesse apenas a senha pegava um token aal1 na API de auth e
+  // chamava esta função direto, sem nunca digitar o TOTP.
+  //
+  // A recusa é restrita a quem TEM fator verificado e não o cumpriu nesta
+  // sessão. Conta sem MFA cadastrado segue funcionando, para a correção não
+  // trancar o administrador para fora do próprio painel.
+  const temTotpVerificado = (user.factors ?? []).some(
+    (f) => f.factor_type === "totp" && f.status === "verified",
+  );
+  if (temTotpVerificado && lerAalDoJwt(authHeader) !== "aal2") {
+    console.warn(`Sessão sem segundo fator recusada para ${email || user.id}.`);
+    return {
+      error: jsonResponse(
+        { error: "Segundo fator obrigatório. Conclua o desafio TOTP e tente de novo." },
+        403,
+      ),
+    };
   }
 
   return { admin: { id: user.id, email } };

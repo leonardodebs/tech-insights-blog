@@ -7,6 +7,23 @@ import fs from "fs/promises";
 import helmet from "helmet";
 import compression from "compression";
 import he from "he";
+import crypto from "crypto";
+
+/** URL pública do site, usada para montar links canônicos sem refletir o Host. */
+const BASE_URL = "https://leonardodebs.github.io/tech-insights-blog";
+
+/**
+ * Compara o token em tempo constante (achado A-07). O `!==` interrompe na
+ * primeira diferença, o que em tese permite inferir o valor medindo o tempo de
+ * resposta. Compara o hash de ambos para que os buffers tenham sempre o mesmo
+ * tamanho, condição exigida por timingSafeEqual.
+ */
+function tokensIguais(recebido: string | undefined, esperado: string): boolean {
+  if (!recebido) return false;
+  const a = crypto.createHash("sha256").update(recebido).digest();
+  const b = crypto.createHash("sha256").update(esperado).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 async function startServer() {
   const app = express();
@@ -41,7 +58,7 @@ async function startServer() {
     // que, mesmo se algum dia for publicado, o endpoint não fique aberto:
     // exige um token que só existe na máquina local; se não configurado, NEGA.
     const expected = process.env.LOCAL_AUTOMATION_TOKEN;
-    if (!expected || req.get("x-automation-token") !== expected) {
+    if (!expected || !tokensIguais(req.get("x-automation-token"), expected)) {
       return res.status(401).json({
         success: false,
         error: "Não autorizado. Defina LOCAL_AUTOMATION_TOKEN e envie o header x-automation-token.",
@@ -65,11 +82,13 @@ async function startServer() {
       automationRateLimit.set(ip, Date.now());
       res.json({ success: true, post: newPost });
     } catch (error: any) {
+      // O stack fica SÓ no log do servidor (achado A-04). Antes ele voltava no
+      // corpo da resposta sempre que NODE_ENV não fosse exatamente 'production',
+      // expondo caminhos absolutos e a estrutura do projeto a quem chamasse.
       console.error("Automation trigger failed:", error);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         error: error.message || "Unknown error during automation",
-        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
       });
     }
   });
@@ -106,18 +125,27 @@ async function startServer() {
         const safeTitle = he.encode(post.title);
         const safeExcerpt = he.encode(post.excerpt);
 
+        // URL canônica montada a partir de uma constante do servidor, NUNCA do
+        // cabeçalho Host nem de req.originalUrl (achado A-02). Ambos são
+        // controlados por quem faz a requisição e iam crus para dentro de um
+        // atributo HTML, permitindo escapar do content com uma aspa e injetar
+        // script. Escapada também, por defesa em profundidade.
+        const safeUrl = he.encode(`${BASE_URL}/posts/${post.id}/`);
+
         // Inject meta tags
         html = html.replace(/<title>.*?<\/title>/, `<title>${safeTitle} | Tech Insights</title>`);
         html = html.replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${safeExcerpt}" />`);
         html = html.replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${safeTitle}" />`);
         html = html.replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${safeExcerpt}" />`);
-        html = html.replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />`);
+        html = html.replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${safeUrl}" />`);
         html = html.replace(/<meta property="twitter:title" content=".*?" \/>/, `<meta property="twitter:title" content="${safeTitle}" />`);
         html = html.replace(/<meta property="twitter:description" content=".*?" \/>/, `<meta property="twitter:description" content="${safeExcerpt}" />`);
-        html = html.replace(/<meta property="twitter:url" content=".*?" \/>/, `<meta property="twitter:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />`);
+        html = html.replace(/<meta property="twitter:url" content=".*?" \/>/, `<meta property="twitter:url" content="${safeUrl}" />`);
         
-        // Add a specific image for the post if possible, or use a seeded one
-        const imageUrl = `https://picsum.photos/seed/${post.id}/1200/630`;
+        // Imagem de marca própria, a mesma da produção (achado A-06). O
+        // picsum.photos foi removido do site publicado por entregar o IP do
+        // visitante a um terceiro; o dev server tinha ficado para trás.
+        const imageUrl = `${BASE_URL}/og/default.png`;
         html = html.replace(/<meta property="og:image" content=".*?" \/>/, `<meta property="og:image" content="${imageUrl}" />`);
         html = html.replace(/<meta property="twitter:image" content=".*?" \/>/, `<meta property="twitter:image" content="${imageUrl}" />`);
 
@@ -146,7 +174,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  // Loopback, não 0.0.0.0 (achado A-03): este processo carrega a service_role
+  // e a chave da Anthropic no ambiente, e não deve ficar exposto à rede local.
+  app.listen(PORT, "127.0.0.1", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
