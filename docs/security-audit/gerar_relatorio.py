@@ -237,8 +237,9 @@ def construir():
         "além do histórico completo do git e do bundle publicado em produção. "
         f"Foram identificados {len(ACHADOS)} achados e confirmados {len(PONTOS_FORTES)} controles "
         "funcionando corretamente. Nenhuma falha crítica foi encontrada. Os dois achados de "
-        "severidade alta são um bypass de MFA no servidor e um XSS refletido no servidor de "
-        "desenvolvimento.", P))
+        "severidade alta eram um bypass de MFA no servidor e um XSS refletido no servidor de "
+        "desenvolvimento. <b>Esta revisão registra os 8 achados já corrigidos e verificados</b>, "
+        "com as Edge Functions redeployadas e o site validado em produção.", P))
     graf = Table([[Image(rosca, width=7.6 * cm, height=5.6 * cm),
                    Image(barras, width=8.6 * cm, height=5.5 * cm)]],
                  colWidths=[8.0 * cm, 9.0 * cm])
@@ -297,6 +298,17 @@ def construir():
         if a.get("condicao"):
             bloco.append(Paragraph(f'<b>Condição.</b> {esc(a["condicao"])}', PQ))
         bloco.append(Paragraph(f'<b>Correção.</b> {esc(a["correcao"])}', P))
+        if a.get("status_correcao"):
+            st = Table([[Paragraph(
+                f'<font color="{CORES["forte"]}"><b>✓ {esc(a["status_correcao"])}</b></font>',
+                ParagraphStyle("s", parent=CEL, fontSize=8))]], colWidths=[16.6 * cm])
+            st.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ECFDF5")),
+                ("LINEBEFORE", (0, 0), (0, -1), 2.2, colors.HexColor(CORES["forte"])),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7), ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            bloco += [Spacer(1, 0.1 * cm), st]
         if a.get("arquivos_extra"):
             bloco.append(Paragraph(
                 "<b>Também relevante:</b> " +

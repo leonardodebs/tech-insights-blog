@@ -10,7 +10,7 @@ relatório seja verificável contra o repositório.
 
 PROJETO = "TechPulse AI (tech-insights-blog)"
 REPO = "leonardodebs/tech-insights-blog"
-DATA_AUDITORIA = "20 de agosto de 2026"
+DATA_AUDITORIA = "30 de agosto de 2026 (rev. 2, pós-correção)"
 
 CORES = {
     "critica": "#B91C1C",
@@ -51,6 +51,7 @@ METODOLOGIA = [
 
 ACHADOS = [
     {
+        "status_correcao": "RESOLVIDO em 30/08: requireAdmin passa a ler a claim aal e recusa sessão sem segundo fator. Edge Functions redeployadas (manage-posts v4, trigger-blog-post v11).",
         "id": "A-01",
         "sev": "alta",
         "cat": "2. Permissão no navegador",
@@ -81,6 +82,7 @@ ACHADOS = [
         "condicao": "Requer conhecimento da senha do admin. Não requer o dispositivo TOTP.",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: URL canônica montada de constante do servidor, com he.encode.",
         "id": "A-02",
         "sev": "alta",
         "cat": "5. Inputs sem tratamento",
@@ -114,6 +116,7 @@ ACHADOS = [
         ),
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: bind alterado para 127.0.0.1.",
         "id": "A-03",
         "sev": "media",
         "cat": "4. Chaves expostas",
@@ -136,6 +139,7 @@ ACHADOS = [
         "condicao": "Vale enquanto o servidor estiver rodando localmente (npm run dev).",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: stack trace removido do corpo da resposta.",
         "id": "A-04",
         "sev": "baixa",
         "cat": "5. Inputs sem tratamento",
@@ -159,6 +163,7 @@ ACHADOS = [
         "condicao": "Combinado com A-03, fica acessível a qualquer um na rede local.",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: painel exige app_metadata.role = admin, definido na conta.",
         "id": "A-05",
         "sev": "baixa",
         "cat": "2. Permissão no navegador",
@@ -187,6 +192,7 @@ ACHADOS = [
         "condicao": "Só é alcançável se o cadastro público estiver habilitado no projeto Supabase.",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: imagem própria no lugar do picsum.photos.",
         "id": "A-06",
         "sev": "baixa",
         "cat": "5. Inputs sem tratamento",
@@ -209,6 +215,7 @@ ACHADOS = [
         "condicao": "Só afeta quem acessar via servidor de desenvolvimento.",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: comparação passa a usar crypto.timingSafeEqual.",
         "id": "A-07",
         "sev": "informativa",
         "cat": "4. Chaves expostas",
@@ -229,6 +236,7 @@ ACHADOS = [
         "condicao": "Requer milhares de requisições e rede de latência estável.",
     },
     {
+        "status_correcao": "RESOLVIDO em 30/08: a causa era o projeto Supabase PAUSADO (status INACTIVE), não o DNS local. Projeto restaurado; RLS confirmado com os 152 posts respondendo e advisors sem alertas.",
         "id": "A-08",
         "sev": "informativa",
         "cat": "1. Banco sem tranca",
