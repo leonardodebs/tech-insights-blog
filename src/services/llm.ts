@@ -185,15 +185,20 @@ async function gerarComOpenAICompat(
 }
 
 /**
- * Groq. Modelo configurável por GROQ_MODEL. Confira os disponíveis em
- * https://console.groq.com/docs/models se o padrão deixar de existir.
+ * Groq. Modelo configurável por GROQ_MODEL.
+ *
+ * O padrão é gpt-oss-120b, o maior modelo de texto do catálogo do Groq em
+ * 14/09/2026. Boa parte do catálogo dele NÃO serve aqui (whisper é áudio,
+ * prompt-guard é classificador de segurança, orpheus é voz), então trocar às
+ * cegas não funciona: rode o workflow "Check LLM Providers", que lista os
+ * modelos disponíveis na conta quando o configurado não existe.
  */
 function gerarComGroq(args: ArgsGeracao): Promise<ResultadoPost> {
   return gerarComOpenAICompat(
     "Groq",
     "https://api.groq.com/openai/v1",
     lerChave("GROQ_API_KEY"),
-    process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile",
+    process.env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b",
     {},
     args,
   );
