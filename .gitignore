@@ -16,3 +16,6 @@ docs/security-audit/.venv/
 
 # cache do gerador do relatorio
 docs/security-audit/__pycache__/
+
+# relatorio solto gerado fora do projeto
+TechPulse-Dependabot-PRs.pdf
