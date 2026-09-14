@@ -72,7 +72,16 @@ jobs:
 
       - name: Post to LinkedIn
         id: linkedin
-        if: steps.generate.outcome == 'success'
+        # Desligado por padrão (14/09/2026, a pedido). O cross-post só roda se a
+        # variável de repositório ENABLE_LINKEDIN for exatamente 'true'. Sem ela
+        # definida, a etapa é pulada e o post sai apenas no blog.
+        #
+        # Para religar:   gh variable set ENABLE_LINKEDIN --body true
+        # Para desligar:  gh variable delete ENABLE_LINKEDIN
+        #
+        # Optamos por um interruptor em vez de remover a etapa para não perder o
+        # código nem os secrets já configurados.
+        if: steps.generate.outcome == 'success' && vars.ENABLE_LINKEDIN == 'true'
         continue-on-error: true
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
