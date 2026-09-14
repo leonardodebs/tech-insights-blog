@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { gerarPost, montarSchemaPost, provedoresDisponiveis } from "./llm";
 import { createClient } from "@supabase/supabase-js";
 import Parser from "rss-parser";
 import fs from "fs";
@@ -359,13 +359,15 @@ Liste apenas as fontes efetivamente usadas no texto)`;
 }
 
 export async function runAutomation(targetCategory?: string | null) {
-  console.log("🚀 Iniciando Motor Master Architect V7.0 (Claude API + Rotação de Categorias)...");
-
-  const apiKey = (process.env.ANTHROPIC_API_KEY || "").trim().replace(/^["']|["']$/g, "");
-  if (!apiKey) throw new Error("Chave ANTHROPIC_API_KEY não configurada.");
-
-  const client = new Anthropic({ apiKey });
-  const MODEL = "claude-haiku-4-5";
+  const disponiveis = provedoresDisponiveis();
+  if (disponiveis.length === 0) {
+    throw new Error(
+      "Nenhum provedor de IA configurado. Defina GEMINI_API_KEY (principal) ou GROQ_API_KEY (reserva).",
+    );
+  }
+  console.log(
+    `🚀 Iniciando Motor Master Architect V8.0 (Rotação de Categorias) — provedores: ${disponiveis.join(" → ")}`,
+  );
 
   let existingPosts: Post[] = [];
   if (fs.existsSync(POSTS_PATH)) {
@@ -453,79 +455,34 @@ export async function runAutomation(targetCategory?: string | null) {
   let lastRejection: string[] = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`✍️ Tentativa ${attempt}/${maxAttempts} [${MODEL}]: Gerando post de ${forcedCategory}...`);
+    console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando post de ${forcedCategory}...`);
 
     // Realimenta o motivo da reprovação anterior para o modelo corrigir
     const retryFeedback = lastRejection.length > 0
       ? `\n\n⛔ A TENTATIVA ANTERIOR FOI REPROVADA PELOS SEGUINTES MOTIVOS — CORRIJA TODOS:\n${lastRejection.map(r => `- ${r}`).join("\n")}`
       : "";
 
-    let response: Anthropic.Message;
+    let result: any = null;
     try {
-      response = await client.messages.create({
-        model: MODEL,
-        // O campo `content` sozinho costuma ter ~1500-2000 tokens (posts reais
-        // têm 5-7 mil caracteres). 2048 no total era curto e truncava o JSON
-        // da tool no meio do artigo em temas mais densos (ex.: Security),
-        // fazendo `content` chegar vazio. 8192 dá margem confortável.
-        max_tokens: 8192,
+      const gerado = await gerarPost({
         system: buildSystemInstruction(forcedCategory),
-        tools: [{
-          name: "publish_post",
-          description: "Publica o post técnico gerado com todos os campos obrigatórios.",
-          input_schema: {
-            type: "object" as const,
-            properties: {
-              title:    { type: "string", description: "Título do post refletindo a tese central" },
-              excerpt:  { type: "string", description: "Resumo de 2-3 linhas com a tese explícita" },
-              category: { type: "string", enum: [forcedCategory] },
-              tags:     { type: "array", items: { type: "string" }, description: "Lista de 3-5 tags técnicas" },
-              content:  { type: "string", description: "Conteúdo completo do post em markdown seguindo a estrutura obrigatória" },
-              linkedinCaption: {
-                type: "string",
-                description: "Legenda para post no LinkedIn (perfil pessoal), baseada na mesma tese do artigo mas reescrita para o formato da rede: gancho forte nas 2 primeiras linhas (antes do 'ver mais'), parágrafos curtos com quebras de linha, SEM headers markdown, tom direto para profissionais de tecnologia. Termine com uma pergunta que convide comentário. NÃO inclua hashtags (vão em campo separado) nem o link do post (será adicionado automaticamente)."
-              },
-              linkedinHashtags: {
-                type: "array",
-                items: { type: "string" },
-                description: "3 a 5 hashtags relevantes para o post no LinkedIn, sem o símbolo #, em CamelCase quando for mais de uma palavra (ex.: [\"CloudComputing\", \"DevOps\", \"Kubernetes\"])."
-              }
-            },
-            required: ["title", "excerpt", "category", "tags", "content", "linkedinCaption", "linkedinHashtags"]
-          }
-        }],
-        tool_choice: { type: "tool", name: "publish_post" },
-        messages: [{ role: "user", content: prompt + retryFeedback }]
+        prompt: prompt + retryFeedback,
+        schema: montarSchemaPost(forcedCategory),
       });
+      result = gerado.resultado;
+      console.log(`   ↳ gerado por ${gerado.provedor}`);
     } catch (apiError: any) {
       const errorIsOverloaded = isOverloadedError(apiError);
-      console.warn(`⚠️ Erro na API do Claude (tentativa ${attempt}):`, apiError.message || apiError);
+      console.warn(`⚠️ Falha na geração (tentativa ${attempt}):`, apiError.message || apiError);
 
       if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: Falha na API do Claude após todas as tentativas.");
+        throw new Error("❌ MOTOR EXAUSTO: todos os provedores falharam após todas as tentativas.");
       }
 
       const baseDelay = errorIsOverloaded ? 30000 : 5000;
       const delay = baseDelay * attempt;
       console.log(`⏳ Aguardando ${delay / 1000}s antes da próxima tentativa...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      continue;
-    }
-
-    if (response.stop_reason === "max_tokens") {
-      console.warn(`⚠️ Tentativa ${attempt}: resposta truncada por max_tokens — o JSON da tool pode ter ficado incompleto.`);
-    }
-
-    // Extrai resultado do tool use — JSON sempre válido
-    const toolBlock = response.content.find(block => block.type === "tool_use");
-    let result: any = null;
-    if (toolBlock?.type === "tool_use") {
-      result = toolBlock.input;
-    } else {
-      console.warn(`⚠️ Resposta sem tool_use na tentativa ${attempt}. Continuando...`);
-      if (attempt === maxAttempts) {
-        throw new Error("❌ MOTOR EXAUSTO: A IA falhou em usar a tool após todas as tentativas.");
-      }
       continue;
     }
 
