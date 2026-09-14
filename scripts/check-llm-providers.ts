@@ -24,6 +24,33 @@ const PROMPT =
   'category "DevOps", tags ["teste"], content "teste", linkedinCaption "teste" e ' +
   'linkedinHashtags ["Teste"].';
 
+/**
+ * Lista modelos de um provedor compatível com OpenAI.
+ *
+ * Chamado quando a geração falha por modelo inexistente: o erro sozinho ("model
+ * not found") não ajuda, porque o catálogo muda e não dá para adivinhar o ID
+ * correto. Listar transforma a falha em instrução do que configurar.
+ */
+async function listarModelos(nome: string, baseUrl: string, chaveEnv: string): Promise<void> {
+  const apiKey = (process.env[chaveEnv] || "").trim();
+  if (!apiKey) return;
+  try {
+    const res = await fetch(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      console.log(`     (não foi possível listar modelos do ${nome}: HTTP ${res.status})`);
+      return;
+    }
+    const json = (await res.json()) as { data?: Array<{ id?: string }> };
+    const ids = (json.data ?? []).map((m) => m.id).filter(Boolean) as string[];
+    console.log(`     Modelos disponíveis no ${nome} (${ids.length}):`);
+    ids.sort().forEach((id) => console.log(`       - ${id}`));
+  } catch (err) {
+    console.log(`     (erro ao listar modelos do ${nome}: ${err instanceof Error ? err.message : err})`);
+  }
+}
+
 async function main() {
   const disponiveis = provedoresDisponiveis();
 
@@ -81,6 +108,20 @@ async function main() {
   console.log("Resultado por provedor:\n");
   for (const r of resultados) {
     console.log(`  ${r.ok ? "✅" : "❌"} ${r.nome.padEnd(12)} ${r.detalhe}`);
+  }
+
+  // Falha de modelo inexistente é a mais comum ao configurar um provedor novo,
+  // e a única em que o erro não diz o que usar no lugar. Nesse caso, lista.
+  const pareceModeloInvalido = (d: string) =>
+    /model_not_found|does not exist|unavailable for free|404/i.test(d);
+
+  for (const r of resultados.filter((x) => !x.ok && pareceModeloInvalido(x.detalhe))) {
+    console.log("");
+    if (r.nome === "Groq") {
+      await listarModelos("Groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY");
+    } else if (r.nome === "OpenRouter") {
+      await listarModelos("OpenRouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY");
+    }
   }
 
   const vivos = resultados.filter((r) => r.ok).length;

@@ -203,10 +203,15 @@ function gerarComGroq(args: ArgsGeracao): Promise<ResultadoPost> {
  * OpenRouter. Agrega dezenas de modelos atrás de uma chave só, incluindo opções
  * gratuitas (identificadas pelo sufixo `:free`).
  *
- * O catálogo muda com frequência e modelos gratuitos entram e saem, então o
- * modelo é obrigatoriamente configurável por OPENROUTER_MODEL. O padrão abaixo é
- * apenas um ponto de partida: confira em https://openrouter.ai/models?q=free
- * qual está disponível e ajuste a variável, sem precisar mexer em código.
+ * O padrão é `openrouter/free`, o roteador de modelos gratuitos do próprio
+ * OpenRouter: ele escolhe entre os gratuitos disponíveis no momento, então NÃO
+ * quebra quando um modelo específico deixa de ser gratuito. Foi exatamente esse
+ * o erro do primeiro diagnóstico (14/09/2026): o modelo fixo que estava aqui
+ * passou a ser pago e a chamada virou 404.
+ *
+ * Para fixar um modelo específico (mais previsível em qualidade), defina a
+ * variável OPENROUTER_MODEL. Veja os gratuitos com response_format em
+ * https://openrouter.ai/models?q=free — mas lembre que ele pode sair da lista.
  *
  * Os headers HTTP-Referer e X-Title são opcionais e servem para identificar a
  * aplicação nos rankings do OpenRouter.
@@ -216,7 +221,7 @@ function gerarComOpenRouter(args: ArgsGeracao): Promise<ResultadoPost> {
     "OpenRouter",
     "https://openrouter.ai/api/v1",
     lerChave("OPENROUTER_API_KEY"),
-    process.env.OPENROUTER_MODEL?.trim() || "meta-llama/llama-3.3-70b-instruct:free",
+    process.env.OPENROUTER_MODEL?.trim() || "openrouter/free",
     {
       "HTTP-Referer": "https://leonardodebs.github.io/tech-insights-blog/",
       "X-Title": "TechPulse AI",
