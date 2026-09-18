@@ -37,21 +37,25 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Audit dependencies (bloqueia em critical de produção)
+      - name: Audit dependencies (bloqueia em high de produção)
         # Gate de supply chain (B-04): o deploy FALHA se houver vulnerabilidade
-        # CRITICAL numa dependência servida ao visitante (--omit=dev). O resumo
-        # completo (inclui high) fica no relatório do run para revisão.
+        # HIGH ou CRITICAL numa dependência servida ao visitante (--omit=dev).
+        # O resumo completo fica no relatório do run para revisão.
         #
-        # Por que critical e não high: o react-router 7.18 carrega um advisory
-        # high de "RSC Mode CSRF", que exige React Server Components + server
-        # actions. Este blog é uma SPA estática (HashRouter, sem servidor, sem
-        # RSC), então o advisory não se aplica — bloquear por ele mataria todo
-        # deploy sem risco real. Critical continua sendo hard-fail porque uma
-        # vuln critical em dep de produção é grave o bastante para parar tudo.
+        # O gate esteve afrouxado em `critical` entre 04/08 e 18/09 por um único
+        # motivo: o react-router 7.18.1 carregava um advisory high (RSC CSRF)
+        # cuja única correção, na época, era um major arriscado. Em 18/09 saiu o
+        # patch 7.18.2, a vulnerabilidade foi eliminada e as dependências
+        # exclusivas do dev server saíram de `dependencies`. Com produção em
+        # ZERO vulnerabilidades, o gate volta ao rigor que a auditoria pedia.
+        #
+        # Se algum dia isto barrar um deploy por um advisory que comprovadamente
+        # não se aplica, prefira corrigir ou reclassificar a dependência a
+        # afrouxar o gate de novo.
         run: |
           echo "## 🔍 npm audit (dependências de produção)" >> "$GITHUB_STEP_SUMMARY"
           npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
-          npm audit --omit=dev --audit-level=critical
+          npm audit --omit=dev --audit-level=high
 
       - name: Build Site
         env:
