@@ -98,6 +98,16 @@ interface ArgsGeracao {
   system: string;
   prompt: string;
   schema: Record<string, unknown>;
+  /**
+   * Provedores a pular nesta chamada, pelo nome.
+   *
+   * A cadeia trocava de provedor apenas quando um deles ERRAVA (erro de API,
+   * cota, resposta inválida). Reprovação de CONTEÚDO pela validação não contava,
+   * então um provedor que respondia bem mas escrevia fontes erradas consumia as
+   * 5 tentativas sozinho e o dia terminava sem post (07/10/2026). Com isto, o
+   * chamador pode descartar quem já falhou e dar a vez ao próximo.
+   */
+  excluir?: string[];
 }
 
 /**
@@ -253,13 +263,19 @@ export function provedoresDisponiveis(): string[] {
  * o motivo de cada um, para o log dizer o que houve sem exigir investigação.
  */
 export async function gerarPost(args: ArgsGeracao): Promise<{ resultado: ResultadoPost; provedor: string }> {
-  const disponiveis = PROVEDORES.filter((p) => lerChave(p.chave));
+  const comChave = PROVEDORES.filter((p) => lerChave(p.chave));
 
-  if (disponiveis.length === 0) {
+  if (comChave.length === 0) {
     throw new Error(
       "Nenhum provedor de IA configurado. Defina GEMINI_API_KEY (principal) ou GROQ_API_KEY (reserva).",
     );
   }
+
+  // Se o chamador excluiu todos, ignora a exclusão em vez de ficar sem nenhum:
+  // um provedor que já reprovou ainda é melhor que não gerar post nenhum.
+  const excluir = new Set(args.excluir ?? []);
+  const filtrados = comChave.filter((p) => !excluir.has(p.nome));
+  const disponiveis = filtrados.length > 0 ? filtrados : comChave;
 
   const falhas: string[] = [];
   for (const p of disponiveis) {

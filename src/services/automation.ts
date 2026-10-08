@@ -446,13 +446,46 @@ export async function runAutomation(targetCategory?: string | null) {
     ? `\n\n⚠️ POSTS RECENTES — NÃO escreva sobre o mesmo produto, release, ferramenta ou tecnologia central destes. Escolha um assunto claramente diferente:\n${recentPostsSummary}\n\nSe as notícias abaixo forem dominadas por um assunto já coberto acima (ex.: o mesmo release ou produto), IGNORE essas notícias e escolha outra menos óbvia do contexto. Repetir o produto/release central de um post recente é reprovação automática.\n`
     : "";
 
+  // Lista explícita das URLs do contexto, logo antes da regra de fontes.
+  //
+  // Sem ela, a única forma de citar uma fonte era garimpar o trecho "(URL: ...)"
+  // no meio de 12 notícias e copiá-lo de cabeça. Modelos menores erram esse
+  // passo de duas maneiras, ambas observadas na falha de 07/10/2026: escrevem a
+  // linha da fonte sem link nenhum, ou inventam uma URL plausível para um
+  // domínio conhecido (o caso do cloud.google.com/blog/...).
+  //
+  // Entregar as URLs prontas, numeradas e isoladas transforma "lembrar o
+  // endereço" em "copiar um item da lista", que é o que um modelo pequeno
+  // consegue fazer de forma confiável. Só as do contexto entram, então copiar
+  // daqui é, por construção, copiar de uma fonte válida.
+  const urlsPermitidas = [...new Set(contextUrls)];
+  const listaDeUrls = urlsPermitidas.length > 0
+    ? `\n\n━━━ URLS DISPONÍVEIS PARA A SEÇÃO "## Fontes" ━━━\n` +
+      `Copie e cole UMA destas, caractere por caractere. Qualquer URL fora desta lista é reprovação automática:\n` +
+      urlsPermitidas.map((u, i) => `${i + 1}. ${u}`).join("\n") +
+      `\n\nToda linha da seção "## Fontes" PRECISA conter um link markdown no formato [Fonte: Nome] [Título](URL), com a URL vinda da lista acima. Linha de fonte sem link é reprovação automática.\n`
+    : "";
+
   // Limite maior que antes (era 4000) para acomodar as URLs de cada notícia
   // sem cortar o contexto no meio de um item.
-  const prompt = `Crie a análise técnica sobre **${forcedCategory}** baseada nestas notícias:\n${context.substring(0, 5500)}${deduplicationHint}`;
+  const prompt = `Crie a análise técnica sobre **${forcedCategory}** baseada nestas notícias:\n${context.substring(0, 5500)}${deduplicationHint}${listaDeUrls}`;
 
   const maxAttempts = 5;
   let lastResult = null;
   let lastRejection: string[] = [];
+
+  // Troca de provedor por reprovação de CONTEÚDO, não só por erro de API.
+  //
+  // Antes, a cadeia só mudava de provedor quando um deles ERRAVA. Se o provedor
+  // respondia bem mas escrevia fontes erradas, ele consumia as 5 tentativas
+  // sozinho e o dia terminava sem post, que foi o ocorrido em 07/10/2026 (5
+  // reprovações seguidas do Gemini, alternando entre fonte sem link e URL
+  // inventada). Após MAX_REPROVACOES seguidas do mesmo provedor, ele sai da
+  // disputa e a vez passa ao próximo, que tende a errar de forma diferente.
+  const MAX_REPROVACOES = 2;
+  const descartados: string[] = [];
+  let ultimoProvedor = "";
+  let reprovacoesSeguidas = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`✍️ Tentativa ${attempt}/${maxAttempts}: Gerando post de ${forcedCategory}...`);
@@ -468,8 +501,15 @@ export async function runAutomation(targetCategory?: string | null) {
         system: buildSystemInstruction(forcedCategory),
         prompt: prompt + retryFeedback,
         schema: montarSchemaPost(forcedCategory),
+        excluir: descartados,
       });
       result = gerado.resultado;
+      // Reinicia a contagem ao mudar de provedor: o limite é de reprovações
+      // SEGUIDAS de um mesmo provedor, não acumuladas no run inteiro.
+      if (gerado.provedor !== ultimoProvedor) {
+        ultimoProvedor = gerado.provedor;
+        reprovacoesSeguidas = 0;
+      }
       console.log(`   ↳ gerado por ${gerado.provedor}`);
     } catch (apiError: any) {
       const errorIsOverloaded = isOverloadedError(apiError);
@@ -508,8 +548,25 @@ export async function runAutomation(targetCategory?: string | null) {
       break;
     } else {
       lastRejection = reasons;
-      console.warn(`⚠️ Tentativa ${attempt} reprovada:`);
+      console.warn(`⚠️ Tentativa ${attempt} reprovada (${ultimoProvedor}):`);
       reasons.forEach(r => console.warn(`   - ${r}`));
+
+      // Insistir com quem já errou duas vezes seguidas raramente muda o
+      // resultado: o modelo tende a repetir o mesmo tipo de erro. Passa a vez.
+      reprovacoesSeguidas++;
+      if (reprovacoesSeguidas >= MAX_REPROVACOES && !descartados.includes(ultimoProvedor)) {
+        descartados.push(ultimoProvedor);
+        console.warn(
+          `↪️ ${ultimoProvedor} reprovou ${reprovacoesSeguidas}x seguidas. ` +
+          `Passando a vez para o próximo provedor da cadeia.`,
+        );
+        // Instrução já realimentada; o próximo provedor começa sem o histórico
+        // de erro do anterior, que não diz respeito a ele.
+        lastRejection = reasons;
+        ultimoProvedor = "";
+        reprovacoesSeguidas = 0;
+      }
+
       if (attempt === maxAttempts) {
         throw new Error("❌ MOTOR EXAUSTO: A IA falhou em gerar um post de elite após todas as tentativas.");
       }

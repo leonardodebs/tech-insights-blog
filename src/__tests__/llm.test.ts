@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { extrairJson, montarSchemaPost } from "../services/llm";
+import { describe, it, expect, afterEach } from "vitest";
+import { extrairJson, montarSchemaPost, gerarPost } from "../services/llm";
 
 /**
  * O parser de JSON é o ponto frágil da troca de provedor: o Gemini devolve JSON
@@ -42,6 +42,39 @@ describe("extrairJson", () => {
 
   it("falha de forma explícita quando não há objeto JSON", () => {
     expect(() => extrairJson("Desculpe, não consigo gerar isso.")).toThrow(/não contém um objeto JSON/);
+  });
+});
+
+describe("gerarPost: exclusão de provedor", () => {
+  // A cadeia só trocava de provedor em ERRO de API. Reprovação de conteúdo não
+  // contava, então um provedor que respondia bem mas escrevia fontes erradas
+  // consumia as 5 tentativas sozinho (incidente de 07/10/2026).
+  const guardadas = { ...process.env };
+  afterEach(() => {
+    process.env = { ...guardadas };
+  });
+
+  it("falha avisando quando nenhum provedor tem chave", async () => {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.GROQ_API_KEY;
+    await expect(
+      gerarPost({ system: "s", prompt: "p", schema: {} }),
+    ).rejects.toThrow(/Nenhum provedor de IA configurado/);
+  });
+
+  it("não fica sem provedor quando o chamador exclui todos", async () => {
+    // Só o Groq tem chave e ele está na lista de excluídos. Deve tentar mesmo
+    // assim: um provedor que já reprovou é melhor que nenhum post.
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    process.env.GROQ_API_KEY = "chave-invalida-de-teste";
+    process.env.GROQ_MODEL = "modelo-que-nao-existe";
+
+    // Falha na CHAMADA (chave inválida), não por ficar sem provedor.
+    await expect(
+      gerarPost({ system: "s", prompt: "p", schema: {}, excluir: ["Groq"] }),
+    ).rejects.toThrow(/Todos os provedores falharam/);
   });
 });
 
