@@ -9,6 +9,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # Para abrir issue quando o deploy falhar. Issue aberta gera notificação do
+  # GitHub, que é o caminho até o e-mail sem guardar credencial de SMTP aqui.
+  issues: write
 
 concurrency:
   group: "pages"
@@ -81,3 +84,40 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # Abre issue quando build ou deploy falham. Antes, uma falha aqui ficava
+  # visível só para quem abrisse a aba Actions: o site continuava servindo a
+  # versão anterior, sem nenhum sinal de que a nova não subiu. Issue aberta
+  # dispara a notificação do GitHub, que chega por e-mail.
+  avisar-falha:
+    if: failure()
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Abrir issue de falha no deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TODAY=$(date '+%Y-%m-%d')
+          EXISTING=$(gh issue list --repo "$REPO" --label "deploy-failure" --state open --json number --jq 'length')
+          if [ "$EXISTING" -eq "0" ]; then
+            cat > "$RUNNER_TEMP/deploy-issue.md" <<MD
+          O deploy do site falhou em $TODAY.
+
+          Log do run: $RUN_URL
+
+          **Impacto:** o site continua servindo a versão anterior. Nada quebrou para o visitante, mas mudanças novas não estão no ar.
+
+          **Causas comuns:** teste reprovado, YAML de workflow inválido, ou o gate de \`npm audit\` barrando vulnerabilidade high em dependência de produção.
+
+          Esta issue é aberta uma única vez enquanto o problema persistir.
+          MD
+            gh issue create --repo "$REPO" \
+              --title "🔴 Falha no deploy: $TODAY" \
+              --label "deploy-failure" \
+              --body-file "$RUNNER_TEMP/deploy-issue.md"
+          fi
