@@ -127,6 +127,37 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
+      - name: Alertar falha de sincronia com o Supabase
+        # O post foi gerado e sera commitado, mas NAO chegou ao banco que o site
+        # le. Sem este alerta a falha é invisível: o workflow termina como
+        # sucesso e a home do blog fica vazia enquanto os posts se acumulam no
+        # repositório. Foi exatamente o que aconteceu entre 04 e 07/10/2026.
+        if: steps.generate.outputs.supabase_falhou == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ERRO: ${{ steps.generate.outputs.supabase_erro }}
+        run: |
+          TODAY=$(date '+%Y-%m-%d')
+          EXISTING=$(gh issue list --label "supabase-sync" --state open --json number --jq 'length')
+          if [ "$EXISTING" -eq "0" ]; then
+            gh issue create \
+              --title "🔴 Post não chegou ao Supabase: $TODAY" \
+              --label "supabase-sync" \
+              --body "O post de $TODAY foi gerado e commitado no repositório, mas **não foi gravado no Supabase**.
+
+Erro: \`$ERRO\`
+
+**Por que isso importa:** o site lê os posts do Supabase, não do \`posts.json\`. Enquanto isso não for resolvido, a home do blog não exibe os posts novos, mesmo eles existindo no repositório.
+
+**Causa mais comum:** o projeto Supabase pausou. O plano gratuito pausa por inatividade, e uma vez pausado as gravações falham, então ele não volta sozinho.
+
+**Como resolver:**
+1. Reativar o projeto no painel do Supabase (botão Restore)
+2. Rodar o workflow \`Sync Supabase\` para reenviar os posts que ficaram para trás
+
+Esta issue é aberta uma única vez enquanto o problema persistir."
+          fi
+
       - name: Commit and Push Data
         if: steps.generate.outcome == 'success'
         run: |

@@ -1,0 +1,36 @@
+name: "Sync Supabase"
+
+# Reenvia TODOS os posts do posts.json para o Supabase (upsert, idempotente).
+#
+# Serve para recuperar posts que ficaram para trás quando o banco esteve fora do
+# ar: a geração diária salva no repositório e grava no Supabase, mas se a
+# gravação falha o post existe só no repo. Este workflow reconcilia os dois.
+#
+# Manual de propósito: é uma operação de recuperação, não de rotina.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Reenviar posts ao Supabase
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/migrate-posts-to-supabase.ts

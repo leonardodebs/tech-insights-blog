@@ -535,6 +535,8 @@ export async function runAutomation(targetCategory?: string | null) {
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let falhaSupabase = "";
+
   if (supabaseUrl && supabaseKey) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { error } = await supabase.from("posts").upsert({
@@ -547,12 +549,37 @@ export async function runAutomation(targetCategory?: string | null) {
       category: newPost.category,
     }, { onConflict: "id" });
     if (error) {
+      falhaSupabase = error.message;
       console.warn(`⚠️ Post salvo em posts.json mas falhou no Supabase: ${error.message}`);
     } else {
       console.log(`☁️ Post sincronizado com Supabase.`);
     }
   } else {
-    console.warn("⚠️ VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não definidos — post salvo apenas em posts.json.");
+    falhaSupabase = "VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não definidos";
+    console.warn(`⚠️ ${falhaSupabase} — post salvo apenas em posts.json.`);
+  }
+
+  // Falha de gravação no Supabase NÃO pode ser silenciosa (incidente de 07/10).
+  //
+  // O site lê os posts do Supabase, não do posts.json. Quando o projeto pausa
+  // (plano gratuito pausa por inatividade), esta gravação falha, o post continua
+  // sendo salvo e commitado no repositório, e o workflow termina como SUCESSO.
+  // Resultado: a home fica vazia enquanto os posts se acumulam no repo, e ninguém
+  // percebe. Pior, o projeto pausado nunca mais recebe escrita para reativar
+  // sozinho, então o estado é absorvente.
+  //
+  // Não lançamos erro aqui de propósito: isso pularia a etapa de commit (que só
+  // roda se a geração teve sucesso) e perderia o post. Em vez disso, sinalizamos
+  // pela saída da etapa, e o workflow abre uma issue sem descartar o trabalho.
+  if (falhaSupabase) {
+    console.log(`::error::Post NÃO chegou ao Supabase: ${falhaSupabase}. A home do blog não vai exibi-lo.`);
+    const saida = process.env.GITHUB_OUTPUT;
+    if (saida) {
+      fs.appendFileSync(saida, `supabase_falhou=true\n`);
+      // Delimitador aleatório: a mensagem de erro pode conter quebras de linha.
+      const d = `EOF_${Date.now()}`;
+      fs.appendFileSync(saida, `supabase_erro<<${d}\n${falhaSupabase}\n${d}\n`);
+    }
   }
 
   console.log(`✅ Artigo gerado com sucesso: [${newPost.category}] ${newPost.title}`);
