@@ -140,22 +140,28 @@ jobs:
           TODAY=$(date '+%Y-%m-%d')
           EXISTING=$(gh issue list --label "supabase-sync" --state open --json number --jq 'length')
           if [ "$EXISTING" -eq "0" ]; then
+            # Heredoc em arquivo, não string multilinha no YAML: o corpo tem
+            # markdown com '**' e '`', e linha iniciada por '*' fora da
+            # indentação do bloco quebra o parser do YAML.
+            cat > "$RUNNER_TEMP/supabase-issue.md" <<MD
+          O post de $TODAY foi gerado e commitado no repositório, mas **não foi gravado no Supabase**.
+
+          Erro: \`$ERRO\`
+
+          **Por que isso importa:** o site lê os posts do Supabase, não do \`posts.json\`. Enquanto isso não for resolvido, a home do blog não exibe os posts novos, mesmo eles existindo no repositório.
+
+          **Causa mais comum:** o projeto Supabase pausou. O plano gratuito pausa por inatividade, e uma vez pausado as gravações falham, então ele não volta sozinho.
+
+          **Como resolver:**
+          1. Reativar o projeto no painel do Supabase (botão Restore)
+          2. Rodar o workflow \`Sync Supabase\` para reenviar os posts que ficaram para trás
+
+          Esta issue é aberta uma única vez enquanto o problema persistir.
+          MD
             gh issue create \
               --title "🔴 Post não chegou ao Supabase: $TODAY" \
               --label "supabase-sync" \
-              --body "O post de $TODAY foi gerado e commitado no repositório, mas **não foi gravado no Supabase**.
-
-Erro: \`$ERRO\`
-
-**Por que isso importa:** o site lê os posts do Supabase, não do \`posts.json\`. Enquanto isso não for resolvido, a home do blog não exibe os posts novos, mesmo eles existindo no repositório.
-
-**Causa mais comum:** o projeto Supabase pausou. O plano gratuito pausa por inatividade, e uma vez pausado as gravações falham, então ele não volta sozinho.
-
-**Como resolver:**
-1. Reativar o projeto no painel do Supabase (botão Restore)
-2. Rodar o workflow \`Sync Supabase\` para reenviar os posts que ficaram para trás
-
-Esta issue é aberta uma única vez enquanto o problema persistir."
+              --body-file "$RUNNER_TEMP/supabase-issue.md"
           fi
 
       - name: Commit and Push Data
