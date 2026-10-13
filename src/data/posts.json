@@ -1,5 +1,27 @@
 [
   {
+    "id": "post-1791934111787",
+    "title": "Automatizando a remoção de PVCs órfãos com a condição Unused no Kubernetes 1.37",
+    "date": "2026-10-13T23:28:31.787Z",
+    "excerpt": "A nova condição Unused traz visibilidade nativa sobre volumes não utilizados, permitindo que equipes de DevOps criem rotinas de limpeza automática e reduzam custos de armazenamento em clusters grandes.",
+    "content": "# Automatizando a remoção de PVCs órfãos com a condição Unused no Kubernetes 1.37\n> A condição Unused, agora em beta e habilitada por padrão, oferece um ponto de verdade interno para detectar volumes persistentes sem pod ativo, facilitando a automação de limpeza e a contenção de custos.\n\n## O que está acontecendo\nKubernetes 1.37 introduz a condição **Unused** nos objetos PersistentVolumeClaim. O controlador de proteção de PVC monitora pods e, sempre que nenhum pod em estado não‑terminal referencia o volume, define a condição como True. A informação inclui `lastTransitionTime`, permitindo consultas sobre o tempo de inatividade. A feature já vem habilitada por padrão, eliminando a necessidade de ativar feature gates.\n\n## Insights e Riscos\n- **Redução de custos operacionais**: Identificar e excluir PVCs inativos evita consumo de armazenamento que pode representar milhares de dólares em ambientes cloud.\n- **Simplificação de monitoramento**: Não é mais preciso correlacionar pods, PVs e PVCs via scripts externos; a condição está disponível via API padrão.\n- **Risco de exclusão precoce**: Pods em estado *Pending* ainda contam como uso. Se um deployment falhar ao agendar, o PVC permanecerá marcado como usado, atrasando a limpeza.\n- **Impacto em workloads batch**: Jobs com `restartPolicy: Never` liberam o PVC assim que terminam, mas falhas inesperadas podem deixar o PVC em estado *Failed* e ainda ser considerado usado até que o pod seja removido.\n- **Escalabilidade do controlador**: Em clusters com dezenas de milhares de PVCs, o controlador de proteção adiciona carga extra de watch sobre pods; é preciso dimensionar adequadamente o `kube-controller-manager`.\n\n## O que muda na prática\n**Engenheiro de Segurança**\n- Pode auditar o uso de armazenamento sem expor dados sensíveis, já que a condição é pública no objeto PVC.\n- Implementa políticas de retenção baseadas em `lastTransitionTime`, garantindo que volumes contendo dados críticos passem por revisão antes da exclusão.\n\n**Arquiteto**\n- Redefine o design de provisionamento de storage, adotando políticas de *garbage collection* automáticas ao invés de processos manuais.\n- Avalia a necessidade de ajustar limites de `watch` no API server para suportar o volume de eventos gerado pelo controlador.\n\n**DevOps / MLOps**\n- Cria pipelines de limpeza periódica usando `kubectl` ou client‑go: `kubectl get pvc -A -o json | jq '...select(.status.conditions[] | select(.type==\"Unused\" and .status==\"True\" and (.lastTransitionTime | fromdateiso8601) < (now - 2592000)))'`.\n- Integra a condição Unused em dashboards de observabilidade (Prometheus exporters) para alertas de volume ocioso.\n- Automatiza a remoção segura com jobs que verificam backups antes de chamar `kubectl delete pvc`.\n\n## Conclusão direta\nA condição Unused transforma a gestão de armazenamento em Kubernetes de um processo manual e propenso a erros para uma operação observável e automatizável. Ao alinhar políticas de retenção, controle de custos e compliance, equipes de DevOps podem liberar recursos de forma segura e escalar clusters sem acumular lixo digital. Você já incorporou a verificação de PVCs órfãos nos seus pipelines de limpeza?\n\n## Fontes\n[Fonte: Kubernetes Blog] [Kubernetes v1.37 PVC Last Used Time](https://kubernetes.io/blog/2026/09/21/kubernetes-v1-37-pvc-last-used-time/)",
+    "tags": [
+      "Kubernetes",
+      "PVC",
+      "StorageAutomation",
+      "CostOptimization",
+      "Observability"
+    ],
+    "category": "DevOps",
+    "linkedinCaption": "A condição Unused chegou ao Kubernetes 1.37 e já está habilitada por padrão. Agora é possível saber, com um único comando, se um PVC ainda está em uso ou pode ser removido.\n\nEssa visibilidade nativa elimina scripts customizados, reduz custos de storage e permite automatizar a limpeza de volumes órfãos direto nos pipelines.\n\nJá pensou em integrar a condição Unused nos seus dashboards de observabilidade? Como você pretende usar o `lastTransitionTime` para definir políticas de retenção?",
+    "linkedinHashtags": [
+      "Kubernetes",
+      "DevOps",
+      "StorageManagement",
+      "CloudCost"
+    ]
+  },
+  {
     "id": "post-1791855835230",
     "title": "Rebasing and Deprecation Strategies: Maintaining Stability in Rapidly Evolving Open Source Stacks",
     "date": "2026-10-13T01:43:55.230Z",
