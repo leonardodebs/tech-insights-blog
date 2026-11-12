@@ -1,5 +1,28 @@
 [
   {
+    "id": "post-1794447892458",
+    "title": "Custom OTel Collector Reduces Attack Surface while Hybrid Prometheus OTel Instrumentation Drives Operational Balance",
+    "date": "2026-11-12T01:44:52.458Z",
+    "excerpt": "Building a tailored OpenTelemetry Collector and adopting hybrid Prometheus OTel instrumentation together shrink binary size and attack surface while maintaining interoperability, enabling lean, secure observability pipelines.",
+    "content": "# Custom OTel Collector Reduces Attack Surface while Hybrid Prometheus OTel Instrumentation Drives Operational Balance\n\n> Building a tailored OpenTelemetry Collector and adopting hybrid Prometheus OTel instrumentation together shrink binary size and attack surface while maintaining interoperability, enabling lean, secure observability pipelines.\n\n## O que está acontecendo\n\nThe OpenTelemetry Collector Builder (ocb) enables engineers to define a YAML manifest that selects only required components, compiling them into a minimal binary. This approach limits dependencies, reduces the attack surface, and produces a smaller artifact for production deployment. Meanwhile, the 2026 Prometheus and OpenTelemetry interoperability survey shows that ease of use scores have risen from 3.1 to 3.6, and nearly half of respondents run both Prometheus exporters and OTel receivers simultaneously for infrastructure metrics, indicating widespread hybrid usage.\n\n## Insights e Riscos\n\n• Custom Collector manifests allow precise component selection, which directly reduces binary size and the number of third‑party modules that must be tracked for vulnerabilities, thereby decreasing the overall attack surface.\n\n• The survey indicates that 72% of respondents still rely on Prometheus exporters for infrastructure metrics while 57% use OTel receivers, and 41% of application instrumentation adopts OTel SDKs, showing a strong preference for hybrid stacks that can complicate version alignment and require careful configuration of relabeling rules.\n\n• High operational maturity among respondents (48% expert, 41% intermediate) means that teams are capable of managing complex pipelines, yet the need to maintain both Prometheus and OTel configurations introduces additional maintenance overhead and potential for misconfiguration.\n\n• The shift from “Very difficult” to “Difficult” in user ratings reflects real progress, but the large “Neither easy nor difficult” segment reveals that many organizations still experience ambiguous interoperability experiences that can lead to inconsistent telemetry quality.\n\n## O que muda na prática\n\nEngenheiro de Segurança\nA custom collector reduces the number of external modules, limiting the attack surface and simplifying vulnerability management. By shipping a minimal binary, the security team can enforce stricter controls on what code runs in production.\n\nArquiteto\nThe ability to tailor collector components lets architects design pipelines that match performance and cost targets, and hybrid instrumentation allows leveraging native Prometheus metrics while adding OTel traces without a full migration.\n\nDevOps/MLOps\nCI/CD pipelines can package the minimal collector binary, decreasing image size and deployment time. Hybrid instrumentation supports consistent metric collection across services, easing observability for ML workloads and reducing the need for separate exporters.\n\n## Conclusão direta\n\nCustom OTel Collector builds and hybrid Prometheus OTel instrumentation together provide a pragmatic path to lean, secure observability, but they demand disciplined configuration and ongoing alignment of standards. How will your team balance binary minimalism with the operational flexibility required for multi‑system telemetry?\n\n## Fontes\n\n[Fonte: Blog on OpenTelemetry] [Only include resource detectors you need by building your own Collector](https://opentelemetry.io/blog/2026/collector-with-less-dependencies/) [Fonte: Prometheus Blog] [Prometheus and OpenTelemetry interoperability in 2026 - Survey results](https://prometheus.io/blog/2026/09/21/otel-prometheus-interoperability-survey/)",
+    "tags": [
+      "Observability",
+      "OpenTelemetry",
+      "Prometheus",
+      "Collector",
+      "HybridInstrumentation"
+    ],
+    "category": "Observability",
+    "linkedinCaption": "Custom OTel Collector cuts binary size and attack surface while hybrid Prometheus OTel instrumentation delivers operational balance. The 2026 survey shows interoperability scores improving, yet many teams still juggle both stacks. What trade-offs are you willing to accept to keep your observability pipeline lean?",
+    "linkedinHashtags": [
+      "Observability",
+      "OpenTelemetry",
+      "Prometheus",
+      "Collector",
+      "HybridInstrumentation"
+    ]
+  },
+  {
     "id": "post-1794356177411",
     "title": "A Verticalização de IA em Engenharia de Hardware e Ciências: Arquiteturas Híbridas e Validação Determinística",
     "date": "2026-11-11T00:16:17.411Z",
