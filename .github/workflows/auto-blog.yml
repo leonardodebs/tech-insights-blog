@@ -184,3 +184,48 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # Rede de segurança para QUALQUER passo que falhe.
+  #
+  # O alerta dentro do job acima enumera os casos (geração, LinkedIn, Supabase),
+  # e por isso deixou passar a falha de 28/11/2026: o deploy quebrou no último
+  # passo, o post ficou 404 no site, e nenhuma issue foi aberta. Enumerar exige
+  # prever cada modo de falha; este job inverte a lógica e cobre o que sobrar,
+  # inclusive o que ainda não aconteceu.
+  #
+  # Deduplicação: não abre nada se já existe issue aberta de outro notificador,
+  # para uma mesma quebra não virar duas issues.
+  avisar-falha:
+    if: failure()
+    needs: generate-publish
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Abrir issue de falha no pipeline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ABERTAS=$(gh issue list --repo "$REPO" --state open \
+            --label "ci-failure" --label "supabase-sync" --label "pipeline-failure" \
+            --json number --jq 'length')
+          if [ "$ABERTAS" -gt "0" ]; then
+            echo "Já existe issue aberta para esta quebra. Nada a fazer."
+            exit 0
+          fi
+          TODAY=$(date '+%Y-%m-%d')
+          cat > "$RUNNER_TEMP/pipeline-issue.md" <<MD
+          A geração diária falhou em $TODAY.
+
+          Log do run: $RUN_URL
+
+          Abra o log e veja qual passo ficou vermelho. Os casos previstos (falha de geração, do LinkedIn e de gravação no Supabase) abrem issue própria com mais detalhe; esta aqui cobre o resto.
+
+          **Falha conhecida: "Deploy to GitHub Pages" com \`Found 0 artifact(s)\`.** Costuma ser instabilidade do próprio GitHub, e a mensagem de erro sugere reexecutar mais tarde. O post em si já foi gerado e commitado; o que falta é publicar. Para resolver, rode o workflow \`Deploy to GitHub Pages\` manualmente, que reconstrói o site a partir da \`main\`.
+          MD
+          gh issue create --repo "$REPO" \
+            --title "🔴 Falha na geração diária: $TODAY" \
+            --label "pipeline-failure" \
+            --body-file "$RUNNER_TEMP/pipeline-issue.md"
